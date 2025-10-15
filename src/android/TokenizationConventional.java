@@ -412,7 +412,25 @@ public class TokenizationConventional extends CordovaPlugin {
             if (visaClientAPPID.isEmpty())visaClientAPPID = null;
 			
             final D1Params coreConfig = ConfigParams.buildConfigCore(consumerId);
-            final D1Params cardConfig = ConfigParams.buildConfigCard(activity, OEMPayType.GOOGLE_PAY, samsungServiceID, visaClientAPPID);
+
+            OEMPayType oemPayType;
+
+            if (isHuaweiDevice()) {
+                // Huawei devices → use OEMPayType.NONE or Huawei logic
+                Log.i(TAG,"OEM PAY Type : NONE (Issuer Wallet)");
+                oemPayType = OEMPayType.NONE;
+            } else {
+                // Non-Huawei (e.g. Google or Samsung)
+                Log.i(TAG,"OEM PAY Type : GOOGLE_PAY (Google Pay/Issuer Wallet/Samsung Pay)");
+                oemPayType = OEMPayType.GOOGLE_PAY; // or SAMSUNG_PAY if targeting Samsung
+            }
+
+            final D1Params cardConfig = ConfigParams.buildConfigCard(
+                    activity,
+                    oemPayType,
+                    samsungServiceID,
+                    visaClientAPPID
+            );
 
             // D1Pay config.
             final D1PayConfigParams d1PayConfigParams = D1PayConfigParams.getInstance();
@@ -443,6 +461,10 @@ public class TokenizationConventional extends CordovaPlugin {
         }
     }
 
+    private boolean isHuaweiDevice() {
+        return Build.MANUFACTURER != null && Build.MANUFACTURER.toLowerCase().contains("huawei");
+    }
+
     private void login(@NotNull final byte[] issuerToken) {
         try {
             mD1Task.login(issuerToken, new D1Task.Callback<Void>() {
@@ -466,6 +488,7 @@ public class TokenizationConventional extends CordovaPlugin {
 
     public void checkCardDigitizationState(String cardID, CallbackContext callback) {
         try {
+            Log.i(TAG, "Issuer Wallet Card State : " + cardID);
             D1Task.Callback<CardDigitizationState> digitizationCallback = new D1Task.Callback<CardDigitizationState>() {
                 @Override
                 public void onSuccess(@NonNull CardDigitizationState state) {
@@ -477,14 +500,14 @@ public class TokenizationConventional extends CordovaPlugin {
                             // Check Device is Eligible
                             // show button "Enable NFC Payment"
                             callback.success("NOT_DIGITIZED");
-                            Log.i(TAG, "Card Digitization State : NOT_DIGITIZED");
+                            Log.i(TAG, "Issuer Wallet Card State for " + cardID + " is : NOT_DIGITIZED");
                             break;
 
                         case DIGITIZATION_IN_PROGRESS:
                             // Hide button "Enable NFC Payment"
                             // Show digitization in progress
                             callback.success("DIGITIZATION_IN_PROGRESS");
-                            Log.i(TAG, "Card Digitization State : DIGITIZATION_IN_PROGRESS");
+                            Log.i(TAG, "Issuer Wallet Card State for " + cardID + " is : DIGITIZATION_IN_PROGRESS");
                             break;
 
                         case DIGITIZED:
@@ -492,7 +515,7 @@ public class TokenizationConventional extends CordovaPlugin {
                             // check issuer application is the default payment application
                             //defaultPaymentApplication(context, callback);
                             callback.success("DIGITIZED");
-                            Log.i(TAG, "Card Digitization State : DIGITIZED");
+                            Log.i(TAG, "Issuer Wallet Card State for " + cardID + " is : DIGITIZED");
                             break;
                     }
                 }
@@ -501,8 +524,8 @@ public class TokenizationConventional extends CordovaPlugin {
                 public void onError(@NonNull D1Exception exception) {
                     // Refer to D1 SDK Integration – Error Management section
                     // Exception: Not Supported: Display message 'Not Supported'
-                    callback.error("DigitizationCallback : " + exception.toString());
-                    Log.e(TAG, "Card Digitization State On Error : " + exception.toString());
+                    callback.error("Issuer Wallet Card State onError : " + exception.toString());
+                    Log.e(TAG, "Issue Wallet Card State On Error : " + exception.toString());
                 }
             };
 
@@ -516,7 +539,7 @@ public class TokenizationConventional extends CordovaPlugin {
 
     public void addDigitalCard(String cardID, CallbackContext callback) {
         try {
-            Log.i(TAG, "AddDigitalCard CardID : " + cardID);
+            Log.i(TAG, "Add Card to Issuer Wallet of CardID : " + cardID);
             currentCardID = cardID;
             D1PayWallet d1PayWallet = mD1Task.getD1PayWallet();
 
@@ -1314,6 +1337,7 @@ public class TokenizationConventional extends CordovaPlugin {
 	
 	public void checkD1PushCardDigitizationStateGPay(String cardId){
         try{
+            Log.i(TAG, "Google Wallet Card State : " + cardId);
             OEMPayType wallet = OEMPayType.GOOGLE_PAY;
             D1PushWallet d1PushWallet = mD1Task.getD1PushWallet();
             d1PushWallet.getCardDigitizationState(cardId, wallet, new D1Task.Callback<CardDigitizationState>() {
@@ -1323,7 +1347,7 @@ public class TokenizationConventional extends CordovaPlugin {
                         case NOT_DIGITIZED:
                             // show button "Add to Google/Samsung Pay"
                             callback.success("NOT_DIGITIZED");
-                            Log.i(TAG, "Card Digitization State : NOT_DIGITIZED");
+                            Log.i(TAG, "Google Wallet Card State of "+cardId+" is : NOT_DIGITIZED");
                             break;
 
                         case PENDING_IDV:
@@ -1331,19 +1355,19 @@ public class TokenizationConventional extends CordovaPlugin {
                             // 2. Authenticate the end user
                             // 3. Perform activation: d1PushWallet.activateDigitalCard(cardID, wallet, callback)
                             callback.success("PENDING_IDV");
-                            Log.i(TAG, "Card Digitization State : PENDING_IDV");
+                            Log.i(TAG, "Google Wallet Card State of "+cardId+" is : PENDING_IDV");
                             break;
 
                         case DIGITIZED:
                             // hide button "Add to Google/Samsung Pay"
                             callback.success("DIGITIZED");
-                            Log.i(TAG, "Card Digitization State : DIGITIZED");
+                            Log.i(TAG, "Google Wallet Card State of "+cardId+" is : DIGITIZED");
                             break;
 
                         default:
                             // do nothing
                             callback.success("NULL");
-                            Log.i(TAG, "Card Digitization State : NULL");
+                            Log.i(TAG, "Google Wallet Card State of "+cardId+" is : : NULL");
                             break;
                     }
                 }
@@ -1391,7 +1415,7 @@ public class TokenizationConventional extends CordovaPlugin {
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        Log.i(TAG, "onActivityResult received: " + requestCode + ", " + resultCode);
+        Log.i(TAG, "Google wallet onActivityResult received: " + requestCode + ", " + resultCode);
 
         if (mD1Task != null) {
             mD1Task.handleCardResult(requestCode, resultCode, data);
