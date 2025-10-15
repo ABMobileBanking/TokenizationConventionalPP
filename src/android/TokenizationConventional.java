@@ -802,6 +802,9 @@ public class TokenizationConventional extends CordovaPlugin {
                         public void onSuccess(List<CardAsset> cardAssets) {
                             for (final CardAsset cardAsset : cardAssets) {
                                 for (final AssetContent assetContent : cardAsset.getContents()) {
+                                    String base64 = assetContent.getEncodedData();
+                                    Log.i(TAG, "Card image Base64 (copy & decode):\n" + base64.substring(0, Math.min(5000, base64.length())) + "...");
+
                                     final byte[] data = Base64.decode(assetContent.getEncodedData(), Base64.DEFAULT);
                                     Log.i(TAG, "Card Image Length :  " + data.length);
                                     CoreUtils.getInstance().writeToFile(cordova.getActivity().getApplicationContext(), cardID, data);
