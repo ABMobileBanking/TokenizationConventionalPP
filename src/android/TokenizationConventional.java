@@ -60,6 +60,13 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.webkit.RenderProcessGoneDetail;
+import android.view.ViewGroup;
+import android.os.Handler;
+import android.os.Bundle;
+
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -93,11 +100,53 @@ public class TokenizationConventional extends CordovaPlugin {
         return instance;
     }
 
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        instance = null;
+    }
+
 	@Override
     public void initialize(CordovaInterface cordova, CordovaWebView webView) {
         super.initialize(cordova, webView);
         cordova.setActivityResultCallback(this);
+
+        // Attach safe WebView crash handler
+        try {
+            WebView mainWebView = (WebView) webView.getEngine().getView();
+            mainWebView.setWebViewClient(new WebViewClient() {
+                @Override
+                public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                    Log.e(TAG, "WebView renderer crash detected");
+
+                    if (detail != null && !detail.didCrash()) {
+                        // Renderer killed for low memory → reload
+                        view.reload();
+                        return true;
+                    }
+
+                    // Renderer crashed — destroy safely to prevent native crash
+                    try {
+                        ViewGroup parent = (ViewGroup) view.getParent();
+                        if (parent != null) parent.removeView(view);
+                        view.destroy();
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error destroying crashed WebView: " + e.getMessage());
+                    }
+
+                    // Restart Cordova WebView content to recover
+                    cordova.getActivity().runOnUiThread(() -> {
+                        webView.loadUrl("file:///android_asset/www/index.html");
+                    });
+
+                    return true;
+                }
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "Error attaching safe WebViewClient: " + e.getMessage());
+        }
     }
+
 	
     @Override
     public boolean execute(String action, JSONArray args, CallbackContext callbackContext) throws JSONException {
@@ -205,11 +254,6 @@ public class TokenizationConventional extends CordovaPlugin {
                     d1PushAddDigitalCardToSamsungPay(args.getString(0));
                     break;
 					
-				case "getAppPkValue":
-					String AppPKValue = getAppPkValue(cordova.getContext());
-					Log.i(TAG,"App PK Value for Ahlibank : "+AppPKValue);
-					break;
-					
 				case "deactivatePaymentState":
 					mD1PayTransactionListener.deactivate();
 					break;
@@ -250,48 +294,6 @@ public class TokenizationConventional extends CordovaPlugin {
         }
     }
 	
-	public static String getAppPkValue(Context context) {
-        try {
-            // Get PackageManager to fetch the app's package information
-            PackageManager packageManager = context.getPackageManager();
-            String packageName = context.getPackageName();
-
-            // Log the package name for debugging
-            Log.i(TAG, "Package Name = " + packageName);
-
-            // Get the package info along with the signatures
-            PackageInfo packageInfo = packageManager.getPackageInfo(packageName, PackageManager.GET_SIGNATURES);
-            android.content.pm.Signature signature = packageInfo.signatures[0];
-
-            // Get the signature as a byte array
-            byte[] signatureBytes = signature.toByteArray();
-            Log.i(TAG, "signatureBytes = " + byte2Hex(signatureBytes));
-
-            // Create a CertificateFactory instance to process the signature
-            ByteArrayInputStream certInputStream = new ByteArrayInputStream(signatureBytes);
-            CertificateFactory certificateFactory = CertificateFactory.getInstance("X509");
-            Certificate certificate = certificateFactory.generateCertificate(certInputStream);
-
-            // Extract the public key from the certificate
-            byte[] publicKeyEncode = certificate.getPublicKey().getEncoded();
-            Log.i(TAG, "publicKeyEncode = " + byte2Hex(publicKeyEncode));
-
-            // Use SHA-256 to hash the public key
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] sha256 = digest.digest(publicKeyEncode);
-            String appPk = byte2Hex(sha256).toUpperCase();  // Convert to uppercase to match standard format
-
-            // Log the appPk (SHA-256 hash of the public key)
-            Log.i(TAG, "appPk = " + appPk);
-
-            return appPk;  // Return the app's public key value (SHA-256 hash)
-
-        } catch (Exception e) {
-            Log.e(TAG, "getAppPkValue: " + e.toString());
-        }
-        return null;  // Return null in case of an error
-    }
-
     private static String byte2Hex(byte[] input) {
         StringBuilder buf = new StringBuilder();
         char[] hex = new char[]{
@@ -319,20 +321,22 @@ public class TokenizationConventional extends CordovaPlugin {
 							
 
                     Log.i(TAG, "Huawei Push Token: " + "HMS:"+token);
-                    mD1Task.updatePushToken("HMS:"+token, new D1Task.Callback<Void>() {
-                        @Override
-                        public void onSuccess(@Nullable Void ignored) {
-                            // Proceed with subsequent flows.
-                            Log.i(TAG, "HMS Push UpdatePushToken Success: " + "HMS:"+token);
-                        }
 
-                        @Override
-                        public void onError(@NonNull D1Exception exception) {
-                            // Refer to D1 SDK Integration – Error Management section.
-                            Log.e(TAG, "HMS Push UpdatePushToken On Error: " + exception.toString());
-                        }
+                    cordova.getActivity().runOnUiThread(() -> {
+                        mD1Task.updatePushToken("HMS:"+token, new D1Task.Callback<Void>() {
+                            @Override
+                            public void onSuccess(@Nullable Void ignored) {
+                                // Proceed with subsequent flows.
+                                Log.i(TAG, "HMS Push UpdatePushToken Success: " + "HMS:"+token);
+                            }
+
+                            @Override
+                            public void onError(@NonNull D1Exception exception) {
+                                // Refer to D1 SDK Integration – Error Management section.
+                                Log.e(TAG, "HMS Push UpdatePushToken On Error: " + exception.toString());
+                            }
+                        });
                     });
-
                 } catch (Exception e) {
                     Log.e(TAG, "Failed to get Huawei push token", e);
                 }
@@ -340,43 +344,6 @@ public class TokenizationConventional extends CordovaPlugin {
 
         } catch (Exception e) {
             Log.e(TAG, "getSetHMSToken Exception : " + e.toString());
-        }
-    }
-
-    private void getSetFirebaseToken() {
-        try {
-            FirebaseMessaging.getInstance().getToken()
-                    .addOnCompleteListener(new OnCompleteListener<String>() {
-                        @Override
-                        public void onComplete(@NonNull Task<String> task) {
-                            if (!task.isSuccessful()) {
-                                Log.w(TAG, "Fetching FCM registration token failed", task.getException());
-                                return;
-                            }
-
-                            // Get new FCM registration token
-                            String token = task.getResult();
-                            Log.i(TAG, "Firebase token : " + token);
-
-                            mD1Task.updatePushToken(token, new D1Task.Callback<Void>() {
-                                @Override
-                                public void onSuccess(@Nullable Void ignored) {
-                                    // Proceed with subsequent flows.
-                                    Log.i(TAG, "D1FirebaseService UpdatePushToken Success: " + token);
-                                }
-
-                                @Override
-                                public void onError(@NonNull D1Exception exception) {
-                                    // Refer to D1 SDK Integration – Error Management section.
-                                    Log.e(TAG, "D1FirebaseService UpdatePushToken On Error: " + exception.toString());
-                                }
-                            });
-
-                        }
-                    });
-
-        } catch (Exception e) {
-            Log.e(TAG, "getSetFirebaseToken Exception: " + e.toString());
         }
     }
 
@@ -1021,7 +988,10 @@ public class TokenizationConventional extends CordovaPlugin {
 			
             // D1Pay configuration : register contactless transaction callback
             Log.i(TAG, "doManualPayment Card ID : " + cardID);
-			mD1PayTransactionListener.deactivate();
+			if (mD1PayTransactionListener != null) {
+                mD1PayTransactionListener.deactivate();
+            }
+
 			D1PayConfigParams.getInstance().setManualModeContactlessTransactionListener(mD1PayTransactionListener = new D1PayContactlessTransactionListener(cordova.getActivity().getApplicationContext(), cardID));
 			mD1Task.getD1PayWallet().startManualModePayment(cardID);
 			
@@ -1065,12 +1035,6 @@ public class TokenizationConventional extends CordovaPlugin {
         private String mCurrency;
         private final String mCardId;
 
-        /**
-         * Creates a new instance of {@code D1PayContactlessTransactionListener}.
-         *
-         * @param context Context.
-         * @param cardId  CardId
-         */
         public D1PayContactlessTransactionListener(@NonNull final Context context, final String cardId) {
             super();
             mContext = context;
@@ -1088,9 +1052,6 @@ public class TokenizationConventional extends CordovaPlugin {
 
         @Override
         public void onAuthenticationRequired(@NonNull final VerificationMethod method) {
-            /* Only applicable for 2-TAP experience
-             * Display transaction details and tell consumer to authenticate
-             */
             Log.i(TAG, "onAuthenticationRequired");
 
             // All current state values are no longer relevant.
@@ -1104,10 +1065,6 @@ public class TokenizationConventional extends CordovaPlugin {
 
         @Override
         public void onReadyToTap() {
-            /* Only applicable for 2-TAP experience
-             * Inform customer application is ready for 2nd TAP.
-             * Display transaction details and display the remaining time for the 2nd TAP
-             */
             Log.i(TAG, "onReadyToTap");
 
             // Register the timeout callback to update the user on remaining time for the 2nd tap.
@@ -1119,11 +1076,9 @@ public class TokenizationConventional extends CordovaPlugin {
 
                 @Override
                 public void onTimeout() {
-                    // The mobile application should inform end user of the timeout error.
                     updateAmountAndCurrency();
                     deactivate();
                     updateState(PaymentState.STATE_ON_ERROR, new PaymentErrorData(null, "Timer exceeded", mAmount, mCurrency, mCardId));
-                    //updateState(PaymentState.STATE_ON_ERROR, new PaymentErrorData(null, mContext.getString(com.thalesgroup.d1.core.R.string.transaction_timeout), mAmount, mCurrency, mCardId));
                 }
             });
 
@@ -1132,28 +1087,22 @@ public class TokenizationConventional extends CordovaPlugin {
 
         @Override
         public void onTransactionCompleted() {
-            /* The transaction has been completed successfully on the mobile app.
-             * Display transaction status success and details
-             */
             try {
                 updateAmountAndCurrency();
                 updateState(PaymentState.STATE_ON_TRANSACTION_COMPLETED, new PaymentData(mAmount, mCurrency, mCardId));
 
                 Log.i(TAG, "onTransactionCompleted Card ID : " + mCardId);
 
+                // Delay starting new Activity slightly to give NFC service time to finish
                 CoreUtils.getInstance().runInMainThread(() -> {
-                    final Intent intent = new Intent(mContext, TransactionSent.class);
-                    intent.setFlags(FLAG_ACTIVITY_NEW_TASK);
-                    intent.putExtra("HeaderName", "Ahli Pay");
-                    if (mCardId == null) {
-                        intent.putExtra("CardID", "");
-                    } else {
-                        intent.putExtra("CardID", mCardId);
-                    }
-
-                    mContext.startActivity(intent);
+                    new android.os.Handler().postDelayed(() -> {
+                        final Intent intent = new Intent(mContext, TransactionSent.class);
+                        intent.setFlags(FLAG_ACTIVITY_NEW_TASK);
+                        intent.putExtra("HeaderName", "Ahli Pay");
+                        intent.putExtra("CardID", mCardId == null ? "" : mCardId);
+                        mContext.startActivity(intent);
+                    }, 800); // <-- 0.8 second delay before starting TransactionSent
                 });
-
             } catch (Exception e) {
                 Log.e(TAG, "onTransactionCompleted Exception : " + e.toString());
             }
@@ -1161,9 +1110,6 @@ public class TokenizationConventional extends CordovaPlugin {
 
         @Override
         public void onError(@NonNull final D1Exception error) {
-            /* The transaction failed due to an error.
-             * Mobile application should get detailed information from the "error" param and inform the end user.
-             */
             Log.e(TAG, "onError : " + error.toString());
             // All current state values are no longer relevant.
             resetState();
@@ -1172,9 +1118,6 @@ public class TokenizationConventional extends CordovaPlugin {
                     new PaymentErrorData(error.getErrorCode(), error.getLocalizedMessage(), mAmount, mCurrency, mCardId));
         }
 
-        /**
-         * Updates the amount and currency and wipes the transaction data.
-         */
         private void updateAmountAndCurrency() {
             Log.i(TAG, "updateAmountAndCurrency");
             final TransactionData transactionData = getTransactionData();
@@ -1191,21 +1134,13 @@ public class TokenizationConventional extends CordovaPlugin {
             }
         }
 
-        /**
-         * Resets the amount, currency and payment state.
-         */
         private void resetState() {
             Log.i(TAG, "resetState");
             mAmount = 0.0;
             mCurrency = null;
         }
 
-        /**
-         * Updates the payment state and payment data.
-         *
-         * @param state Payment state.
-         * @param data  Payment data.
-         */
+    
         protected void updateState(final PaymentState state, final PaymentData data) {
             // Store last state so it can be read onResume when app was not in foreground.
             Log.i(TAG, "updateState : " + state);
@@ -1268,27 +1203,21 @@ public class TokenizationConventional extends CordovaPlugin {
                 public void onSuccess(CardDigitizationState cardDigitizationState) {
                     switch (cardDigitizationState) {
                         case NOT_DIGITIZED:
-                            // show button "Add to Google/Samsung Pay"
                             callback.success("NOT_DIGITIZED");
                             Log.i(TAG,"Card Digitization State : NOT_DIGITIZED");
                             break;
 
                         case PENDING_IDV:
-                            // 1. show button "Activate your card"
-                            // 2. Authenticate the end user
-                            // 3. Perform activation: d1PushWallet.activateDigitalCard(cardID, wallet, callback)
                             callback.success("PENDING_IDV");
                             Log.i(TAG,"Card Digitization State : PENDING_IDV");
                             break;
 
                         case DIGITIZED:
-                            // hide button "Add to Google/Samsung Pay"
                             callback.success("DIGITIZED");
                             Log.i(TAG,"Card Digitization State : DIGITIZED");
                             break;
 
                         default:
-                            // do nothing
                             callback.success("NULL");
                             Log.i(TAG,"Card Digitization State : NULL");
                             break;
@@ -1354,21 +1283,16 @@ public class TokenizationConventional extends CordovaPlugin {
                             break;
 
                         case PENDING_IDV:
-                            // 1. show button "Activate your card"
-                            // 2. Authenticate the end user
-                            // 3. Perform activation: d1PushWallet.activateDigitalCard(cardID, wallet, callback)
                             callback.success("PENDING_IDV");
                             Log.i(TAG, "Google Wallet Card State of "+cardId+" is : PENDING_IDV");
                             break;
 
                         case DIGITIZED:
-                            // hide button "Add to Google/Samsung Pay"
                             callback.success("DIGITIZED");
                             Log.i(TAG, "Google Wallet Card State of "+cardId+" is : DIGITIZED");
                             break;
 
                         default:
-                            // do nothing
                             callback.success("NULL");
                             Log.i(TAG, "Google Wallet Card State of "+cardId+" is : : NULL");
                             break;
