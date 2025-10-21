@@ -181,7 +181,7 @@ public class TokenizationConventional extends CordovaPlugin {
                             "samsungServiceID: "+samsungServiceID + "\n" +
                             "visaClientAppId: "+visaClientAppId);
 
-                    configure(cordova.getContext(), cordova.getActivity(), serviceUrl, issuerId, exponent, modulus, digitalCardUrl, consumerId,samsungServiceID,visaClientAppId);
+                    configure(cordova.getActivity(), cordova.getActivity(), serviceUrl, issuerId, exponent, modulus, digitalCardUrl, consumerId,samsungServiceID,visaClientAppId);
                     pushToken(huaweiAppID);
                     break;
 
@@ -280,7 +280,7 @@ public class TokenizationConventional extends CordovaPlugin {
         try {
 
             HuaweiApiAvailability apiAvailability = HuaweiApiAvailability.getInstance();
-            int availability = apiAvailability.isHuaweiMobileServicesAvailable(cordova.getContext());
+            int availability = apiAvailability.isHuaweiMobileServicesAvailable(cordova.getActivity());
 
             if (availability == ConnectionResult.SUCCESS) {
                 Log.i(TAG, "Huawei API available");
@@ -312,11 +312,11 @@ public class TokenizationConventional extends CordovaPlugin {
             new Thread(() -> {
                 try {
                     String appId = com.huawei.agconnect.config.AGConnectServicesConfig
-                            .fromContext(cordova.getActivity().getApplicationContext())
+                            .fromContext(cordova.getActivity())
                             .getString(appID); // From agconnect-services.json
 
                     String token = com.huawei.hms.aaid.HmsInstanceId
-                            .getInstance(cordova.getActivity().getApplicationContext())
+                            .getInstance(cordova.getActivity())
                             .getToken(appId, "HCM"); // "HCM" = Huawei Cloud Messaging
 							
 
@@ -349,7 +349,7 @@ public class TokenizationConventional extends CordovaPlugin {
 
     private void setAppContext() {
         try {
-            new D1Task.Builder().setContext(cordova.getActivity().getApplicationContext()).build();
+            new D1Task.Builder().setContext(cordova.getActivity()).build();
         } catch (Exception e) {
             Log.e(TAG, "setAppContext : " + e.toString());
         }
@@ -401,7 +401,7 @@ public class TokenizationConventional extends CordovaPlugin {
 
             // D1Pay config.
             final D1PayConfigParams d1PayConfigParams = D1PayConfigParams.getInstance();
-            d1PayConfigParams.setContactlessTransactionListener(mD1PayTransactionListener = new D1PayContactlessTransactionListener(cordova.getActivity().getApplicationContext(), null));
+            d1PayConfigParams.setContactlessTransactionListener(mD1PayTransactionListener = new D1PayContactlessTransactionListener(cordova.getActivity(), null));
             d1PayConfigParams.setReplenishAuthenticationUIStrings("Replenishment Title",
                     "Replenishment Subtitle",
                     "Replenishment Description",
@@ -552,7 +552,7 @@ public class TokenizationConventional extends CordovaPlugin {
 
     private void checkNFCStatus() {
         try {
-            PackageManager pm = cordova.getContext().getPackageManager();
+            PackageManager pm = cordova.getActivity().getPackageManager();
             if (pm.hasSystemFeature(PackageManager.FEATURE_NFC_HOST_CARD_EMULATION)) {
                 callback.success("E"); //Eligible
                 Log.i(TAG, "Device Eligible for NFC Payment");
@@ -567,10 +567,10 @@ public class TokenizationConventional extends CordovaPlugin {
 
     private void checkDefaultPaymentApp() {
         try {
-            CardEmulation cardEmulation = CardEmulation.getInstance(NfcAdapter.getDefaultAdapter(cordova.getContext()));
+            CardEmulation cardEmulation = CardEmulation.getInstance(NfcAdapter.getDefaultAdapter(cordova.getActivity()));
 
             // Construct the componentName with the default D1 Pay HCE service class
-            ComponentName componentName = new ComponentName(cordova.getContext(), D1HCEService.class.getCanonicalName());
+            ComponentName componentName = new ComponentName(cordova.getActivity(), D1HCEService.class.getCanonicalName());
 
             if (cardEmulation.isDefaultServiceForCategory(componentName, CardEmulation.CATEGORY_PAYMENT)) {
                 // Application is default NFC payment app
@@ -589,14 +589,17 @@ public class TokenizationConventional extends CordovaPlugin {
     private void setDefaultPaymentApp() {
         try {
             // Construct the componentName with the default D1 Pay HCE service class
-            ComponentName componentName = new ComponentName(cordova.getContext(), D1HCEService.class.getCanonicalName());
+            ComponentName componentName = new ComponentName(cordova.getActivity(), D1HCEService.class.getCanonicalName());
 
-            Intent activate = new Intent();
-            activate.setFlags(FLAG_ACTIVITY_NEW_TASK);
-            activate.setAction(CardEmulation.ACTION_CHANGE_DEFAULT);
-            activate.putExtra(CardEmulation.EXTRA_SERVICE_COMPONENT, componentName);
-            activate.putExtra(CardEmulation.EXTRA_CATEGORY, CardEmulation.CATEGORY_PAYMENT);
-            cordova.getContext().startActivity(activate);
+            Intent intent = new Intent();
+            intent.setFlags(FLAG_ACTIVITY_NEW_TASK);
+            intent.setAction(CardEmulation.ACTION_CHANGE_DEFAULT);
+            intent.putExtra(CardEmulation.EXTRA_SERVICE_COMPONENT, componentName);
+            intent.putExtra(CardEmulation.EXTRA_CATEGORY, CardEmulation.CATEGORY_PAYMENT);
+            cordova.getActivity().runOnUiThread(() -> {
+                cordova.getActivity().startActivity(intent);
+            });
+
         } catch (Exception e) {
             callback.error("setDefaultPaymentApp : " + e.toString());
         }
@@ -716,7 +719,7 @@ public class TokenizationConventional extends CordovaPlugin {
                         try {
                             String d1CardID = entry.getKey();
                             D1PayDigitalCard digitalCard = entry.getValue();
-                            String filePath = CoreUtils.getInstance().getFilePath(cordova.getActivity().getApplicationContext(), d1CardID);
+                            String filePath = CoreUtils.getInstance().getFilePath(cordova.getActivity(), d1CardID);
 
                             JSONObject cardObj = new JSONObject();
                             cardObj.put("CardArt", filePath);
@@ -769,12 +772,9 @@ public class TokenizationConventional extends CordovaPlugin {
                         public void onSuccess(List<CardAsset> cardAssets) {
                             for (final CardAsset cardAsset : cardAssets) {
                                 for (final AssetContent assetContent : cardAsset.getContents()) {
-                                    String base64 = assetContent.getEncodedData();
-                                    Log.i(TAG, "Card image Base64 (copy & decode):\n" + base64.substring(0, Math.min(5000, base64.length())) + "...");
-
                                     final byte[] data = Base64.decode(assetContent.getEncodedData(), Base64.DEFAULT);
                                     Log.i(TAG, "Card Image Length :  " + data.length);
-                                    CoreUtils.getInstance().writeToFile(cordova.getActivity().getApplicationContext(), cardID, data);
+                                    CoreUtils.getInstance().writeToFile(cordova.getActivity(), cardID, data);
                                     break;
                                 }
                                 break;
@@ -992,7 +992,7 @@ public class TokenizationConventional extends CordovaPlugin {
                 mD1PayTransactionListener.deactivate();
             }
 
-			D1PayConfigParams.getInstance().setManualModeContactlessTransactionListener(mD1PayTransactionListener = new D1PayContactlessTransactionListener(cordova.getActivity().getApplicationContext(), cardID));
+			D1PayConfigParams.getInstance().setManualModeContactlessTransactionListener(mD1PayTransactionListener = new D1PayContactlessTransactionListener(cordova.getActivity(), cardID));
 			mD1Task.getD1PayWallet().startManualModePayment(cardID);
 			
         } catch (Exception e) {
@@ -1030,14 +1030,12 @@ public class TokenizationConventional extends CordovaPlugin {
     }
 
     public class D1PayContactlessTransactionListener extends ContactlessTransactionListener {
-        public Context mContext;
         private double mAmount;
         private String mCurrency;
         private final String mCardId;
 
         public D1PayContactlessTransactionListener(@NonNull final Context context, final String cardId) {
             super();
-            mContext = context;
             mCardId = cardId;
 
             resetState();
@@ -1096,11 +1094,13 @@ public class TokenizationConventional extends CordovaPlugin {
                 // Delay starting new Activity slightly to give NFC service time to finish
                 CoreUtils.getInstance().runInMainThread(() -> {
                     new android.os.Handler().postDelayed(() -> {
-                        final Intent intent = new Intent(mContext, TransactionSent.class);
+                        final Intent intent = new Intent(cordova.getActivity(), TransactionSent.class);
                         intent.setFlags(FLAG_ACTIVITY_NEW_TASK);
                         intent.putExtra("HeaderName", "Ahli Pay");
                         intent.putExtra("CardID", mCardId == null ? "" : mCardId);
-                        mContext.startActivity(intent);
+                        cordova.getActivity().runOnUiThread(() -> {
+                            cordova.getActivity().startActivity(intent);
+                        });
                     }, 800); // <-- 0.8 second delay before starting TransactionSent
                 });
             } catch (Exception e) {
@@ -1111,11 +1111,13 @@ public class TokenizationConventional extends CordovaPlugin {
         @Override
         public void onError(@NonNull final D1Exception error) {
             Log.e(TAG, "onError : " + error.toString());
+            
+            if (error.toString().contains("PAYMENT_WRONG_STATE")) {
+                deactivate();
+            }
             // All current state values are no longer relevant.
             resetState();
-
-            updateState(PaymentState.STATE_ON_ERROR,
-                    new PaymentErrorData(error.getErrorCode(), error.getLocalizedMessage(), mAmount, mCurrency, mCardId));
+            updateState(PaymentState.STATE_ON_ERROR,new PaymentErrorData(error.getErrorCode(), error.getLocalizedMessage(), mAmount, mCurrency, mCardId));
         }
 
         private void updateAmountAndCurrency() {
@@ -1146,11 +1148,13 @@ public class TokenizationConventional extends CordovaPlugin {
             Log.i(TAG, "updateState : " + state);
             // Notify rest of the application in UI thread.
             CoreUtils.getInstance().runInMainThread(() -> {
-                final Intent intent = new Intent(mContext, cordova.getContext().getClass());
+                final Intent intent = new Intent(cordova.getActivity(), cordova.getActivity().getClass());
                 intent.setFlags(FLAG_ACTIVITY_NEW_TASK);
                 intent.putExtra("STATE_EXTRA_KEY", state);
                 intent.putExtra("PAYMENT_DATA_EXTRA_KEY", data);
-                mContext.startActivity(intent);
+                cordova.getActivity().runOnUiThread(() -> {
+                    cordova.getActivity().startActivity(intent);
+                });
             });
             if (state == PaymentState.STATE_ON_AUTHENTICATION_REQUIRED) {
                 doAuthenticate();
@@ -1277,7 +1281,6 @@ public class TokenizationConventional extends CordovaPlugin {
                 public void onSuccess(CardDigitizationState cardDigitizationState) {
                     switch (cardDigitizationState) {
                         case NOT_DIGITIZED:
-                            // show button "Add to Google/Samsung Pay"
                             callback.success("NOT_DIGITIZED");
                             Log.i(TAG, "Google Wallet Card State of "+cardId+" is : NOT_DIGITIZED");
                             break;
