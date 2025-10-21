@@ -100,12 +100,6 @@ public class TokenizationConventional extends CordovaPlugin {
         return instance;
     }
 
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
-        instance = null;
-    }
-
 	@Override
     public void initialize(CordovaInterface cordova, CordovaWebView webView) {
         super.initialize(cordova, webView);
@@ -1111,7 +1105,7 @@ public class TokenizationConventional extends CordovaPlugin {
         @Override
         public void onError(@NonNull final D1Exception error) {
             Log.e(TAG, "onError : " + error.toString());
-            
+
             if (error.toString().contains("PAYMENT_WRONG_STATE")) {
                 deactivate();
             }
