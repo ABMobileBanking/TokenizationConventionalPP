@@ -1338,11 +1338,14 @@ public class TokenizationConventional extends CordovaPlugin {
     // Activity Result: The `onActivityResult` method is received in the issuer app from GPay SDK, and passed back to D1 SDK to handle the result.
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        Log.i(TAG, "Google wallet onActivityResult received: " + requestCode + ", " + resultCode);
-
         if (mD1Task != null) {
-            mD1Task.handleCardResult(requestCode, resultCode, data);
+            try {
+                super.onActivityResult(requestCode, resultCode, data);
+                Log.i(TAG, "Google wallet onActivityResult received: " + requestCode + ", " + resultCode);
+                mD1Task.handleCardResult(requestCode, resultCode, data);
+            } catch (NullPointerException npe) {
+                Log.e(TAG, "D1Task internal listener is null, cannot handle card result safely", npe);
+            }
         } else {
             Log.e(TAG, "mD1Task is null in onActivityResult");
         }
