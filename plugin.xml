@@ -134,6 +134,7 @@
 		<resource-file src="src/ios/Resources/VSC.png" target="Resources/VSC.png" />
 		<resource-file src="src/ios/Resources/VUM.png" target="Resources/VUM.png" />
 		<resource-file src="src/ios/Resources/VPR.png" target="Resources/VPR.png" />
+		<resource-file src="src/ios/Resources/VCD.png" target="Resources/VCD.png" />
 		<resource-file src="src/ios/Resources/IPS-MNS.png" target="Resources/IPS-MNS.png" />
 		<resource-file src="src/ios/Resources/VPP-MNP.png" target="Resources/VPP-MNP.png" />
 		
