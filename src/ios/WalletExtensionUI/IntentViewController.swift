@@ -161,7 +161,7 @@ class IntentViewController: UIViewController, D1IssuerProvisioningExtensionAutho
             return
         }
 	
-		let urlString = "https://mye-bankonline.ahlibank.om/Common_MBL/rest/Thales/GetThalesJWTToken?ConsumerID=\(consumerID)"
+		let urlString = "https://ahlitest.ahlibank.om/Common_MBL/rest/Thales/GetThalesJWTToken?ConsumerID=\(consumerID)"
         guard let url = URL(string: urlString) else {
             NSLog("Invalid URL")
             self.activityIndicator.stopAnimating()
