@@ -382,8 +382,8 @@ public class TokenizationConventional extends CordovaPlugin {
                 oemPayType = OEMPayType.NONE;
             } else {
                 // Non-Huawei (e.g. Google or Samsung)
-                Log.i(TAG,"OEM PAY Type : GOOGLE_PAY (Google Pay/Issuer Wallet/Samsung Pay)");
-                oemPayType = OEMPayType.GOOGLE_PAY; // or SAMSUNG_PAY if targeting Samsung
+                Log.i(TAG,"OEM PAY Type : SAMSUNG_PAY (Google Pay/Issuer Wallet/Samsung Pay)");
+                oemPayType = OEMPayType.SAMSUNG_PAY; // or SAMSUNG_PAY if targeting Samsung
             }
 
             final D1Params cardConfig = ConfigParams.buildConfigCard(
@@ -1192,8 +1192,9 @@ public class TokenizationConventional extends CordovaPlugin {
         }
     }
 
-    public void checkD1PushCardDigitizationStateSamsungPay(String cardId){
-        try{
+    public void checkD1PushCardDigitizationStateSamsungPay(String cardId) {
+        try {
+            Log.i(TAG, "Samsung Wallet Card State : " + cardId);
             OEMPayType wallet = OEMPayType.SAMSUNG_PAY;
             D1PushWallet d1PushWallet = mD1Task.getD1PushWallet();
             d1PushWallet.getCardDigitizationState(cardId, wallet, new D1Task.Callback<CardDigitizationState>() {
@@ -1202,36 +1203,36 @@ public class TokenizationConventional extends CordovaPlugin {
                     switch (cardDigitizationState) {
                         case NOT_DIGITIZED:
                             callback.success("NOT_DIGITIZED");
-                            Log.i(TAG,"Card Digitization State : NOT_DIGITIZED");
+                            Log.i(TAG, "Samsung Wallet Card State of " + cardId + " is : NOT_DIGITIZED");
                             break;
 
                         case PENDING_IDV:
                             callback.success("PENDING_IDV");
-                            Log.i(TAG,"Card Digitization State : PENDING_IDV");
+                            Log.i(TAG, "Samsung Wallet Card State of " + cardId + " is : PENDING_IDV");
                             break;
 
                         case DIGITIZED:
                             callback.success("DIGITIZED");
-                            Log.i(TAG,"Card Digitization State : DIGITIZED");
+                            Log.i(TAG, "Samsung Wallet Card State of " + cardId + " is : DIGITIZED");
                             break;
 
                         default:
                             callback.success("NULL");
-                            Log.i(TAG,"Card Digitization State : NULL");
+                            Log.i(TAG, "Samsung Wallet Card Digitization State : NULL");
                             break;
                     }
                 }
 
                 @Override
                 public void onError(@NonNull D1Exception e) {
-                    callback.error(e.toString());
-                    Log.e(TAG,"checkD1PushCardDigitizationState Exception : "+e.toString());
+                    callback.error(e.getLocalizedMessage());
+                    Log.e(TAG, "Samsung wallet card state onError :  : " + e.getLocalizedMessage());
                 }
             });
 
 
-        }catch(Exception e){
-            Log.e(TAG,"checkD1PushCardDigitizationState Exception : "+e.toString());
+        } catch (Exception e) {
+            Log.e(TAG, "checkD1PushCardDigitizationState Exception : " + e.getLocalizedMessage());
         }
     }
 
