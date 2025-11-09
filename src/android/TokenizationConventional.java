@@ -1247,6 +1247,7 @@ public class TokenizationConventional extends CordovaPlugin {
 
     public void d1PushAddDigitalCardToSamsungPay(String cardId){
         try{
+			Log.i(TAG, "Add card to Samsung wallet : " + cardId);
             D1PushWallet d1PushWallet = mD1Task.getD1PushWallet();
             OEMPayType wallet = OEMPayType.SAMSUNG_PAY;
 
@@ -1254,15 +1255,17 @@ public class TokenizationConventional extends CordovaPlugin {
                 @Override
                 public void onSuccess(Object o) {
                     callback.success("success");
+					Log.i(TAG, "Add Card To Samsung Wallet Successfully");
                 }
 
                 @Override
                 public void onError(@NonNull D1Exception e) {
+					Log.e(TAG, "Add Card To Samsung wallet Error : " + e.toString());
                     callback.success(e.toString());
                 }
             });
         }catch (Exception e){
-            Log.e(TAG, "d1PushActivateDigitalCard Exception : "+e.toString());
+            Log.e(TAG, "d1PushAddDigitalCardToSamsungPay Exception : "+e.toString());
         }
     }
 	
