@@ -349,76 +349,78 @@ public class TokenizationConventional extends CordovaPlugin {
         }
     }
 
-    private void configure(@NotNull final Context context,
-                           @NotNull final Activity activity,
-                           @NotNull final String serviceUrl,
-                           @NotNull final String issuerId,
-                           @NotNull final byte[] exponent,
-                           @NotNull final byte[] modulus,
-                           @NotNull final String digitalCardUrl,
-                           @NotNull final String consumerId,
-						   @NotNull String samsungServiceID,
-                           @NotNull String visaClientAPPID) {
+    private void configure(
+            @NotNull final Context context,
+            @NotNull final Activity activity,
+            @NotNull final String serviceUrl,
+            @NotNull final String issuerId,
+            @NotNull final byte[] exponent,
+            @NotNull final byte[] modulus,
+            @NotNull final String digitalCardUrl,
+            @NotNull final String consumerId,
+            @NotNull String samsungServiceId,
+            @NotNull String visaClientAppId) {
 
         try {
+            // --- Initialize D1Task ---
             mD1Task = new D1Task.Builder()
                     .setContext(context)
                     .setD1ServiceURL(serviceUrl)
                     .setIssuerID(issuerId)
                     .setD1ServiceRSAExponent(exponent)
                     .setD1ServiceRSAModulus(modulus)
-                    .setDigitalCardURL(digitalCardUrl).build();
+                    .setDigitalCardURL(digitalCardUrl)
+                    .build();
 
-			if (samsungServiceID.isEmpty())samsungServiceID = null;
-            if (visaClientAPPID.isEmpty())visaClientAPPID = null;
-			
+            // --- Normalize optional parameters ---
+            samsungServiceId = samsungServiceId.isEmpty() ? null : samsungServiceId;
+            visaClientAppId = visaClientAppId.isEmpty() ? null : visaClientAppId;
+
+            // --- Build Core Configuration ---
             final D1Params coreConfig = ConfigParams.buildConfigCore(consumerId);
 
-            OEMPayType oemPayType;
-
-            if (isHuaweiDevice()) {
-                // Huawei devices → use OEMPayType.NONE or Huawei logic
-                Log.i(TAG,"OEM PAY Type : NONE (Issuer Wallet)");
-                oemPayType = OEMPayType.NONE;
-            } else {
-                // Non-Huawei (e.g. Google or Samsung)
-                Log.i(TAG,"OEM PAY Type : SAMSUNG_PAY (Google Pay/Issuer Wallet/Samsung Pay)");
-                oemPayType = OEMPayType.SAMSUNG_PAY; // or SAMSUNG_PAY if targeting Samsung
-            }
-
-            final D1Params cardConfig = ConfigParams.buildConfigCard(
-                    activity,
-                    oemPayType,
-                    samsungServiceID,
-                    visaClientAPPID
-            );
-
-            // D1Pay config.
+            // --- D1Pay Configuration ---
             final D1PayConfigParams d1PayConfigParams = D1PayConfigParams.getInstance();
-            d1PayConfigParams.setContactlessTransactionListener(mD1PayTransactionListener = new D1PayContactlessTransactionListener(cordova.getActivity(), null));
-            d1PayConfigParams.setReplenishAuthenticationUIStrings("Replenishment Title",
+            mD1PayTransactionListener = new D1PayContactlessTransactionListener(cordova.getActivity(), null);
+            d1PayConfigParams.setContactlessTransactionListener(mD1PayTransactionListener);
+
+            d1PayConfigParams.setReplenishAuthenticationUIStrings(
+                    "Replenishment Title",
                     "Replenishment Subtitle",
                     "Replenishment Description",
-                    "Cancel");
+                    "Cancel"
+            );
 
-            mD1Task.configure(new D1Task.ConfigCallback<Void>() {
+            // --- Define Configuration Callback ---
+            final D1Task.ConfigCallback<Void> configCallback = new D1Task.ConfigCallback<Void>() {
                 @Override
                 public void onSuccess(final Void data) {
-                    callback.success("D1 SDK Configuration Successfull");
-                    Log.i(TAG, "D1 SDK Configuration Successfull");
+                    Log.i(TAG, "D1 SDK Configuration Successful");
+                    callback.success("D1 SDK Configuration Successful");
                 }
 
                 @Override
-                public void onError(@NonNull List<D1Exception> exceptions) {
-                    for (final D1Exception exception : exceptions) {
-						Log.e(TAG ,"D1 SDK Configuration onError : "+ exception.getMessage());
-					}
-					callback.error(createJsonError(exceptions));
+                public void onError(@NonNull final List<D1Exception> exceptions) {
+                    Log.e(TAG, "D1 SDK Configuration Error: " + exceptions);
+                    callback.error(createJsonError(exceptions));
                 }
-            }, coreConfig, cardConfig, d1PayConfigParams);
-        } catch (Exception exception) {
-            Log.e(TAG, "Configure Fun Error : " + exception.toString());
-            callback.error("Configure Fun Error : " + exception.toString());
+            };
+
+            // --- Device-Specific Configuration ---
+            if (isHuaweiDevice()) {
+                Log.i(TAG, "OEM PAY Type: NONE (Issuer Wallet)");
+                final D1Params ahliPayConfig = ConfigParams.buildConfigCard(activity, OEMPayType.NONE, samsungServiceId, visaClientAppId);
+                mD1Task.configure(configCallback, coreConfig, ahliPayConfig, d1PayConfigParams);
+            } else {
+                Log.i(TAG, "OEM PAY Type: SAMSUNG_PAY and GOOGLE_PAY (Google Pay / Issuer Wallet / Samsung Pay)");
+                final D1Params samsungPayConfig = ConfigParams.buildConfigCard(activity, OEMPayType.SAMSUNG_PAY, samsungServiceId, visaClientAppId);
+                final D1Params googlePayConfig = ConfigParams.buildConfigCard(activity, OEMPayType.GOOGLE_PAY, null, visaClientAppId);
+                mD1Task.configure(configCallback, coreConfig, samsungPayConfig, googlePayConfig, d1PayConfigParams);
+            }
+
+        } catch (final Exception e) {
+            Log.e(TAG, "Configuration Error: " + e.getLocalizedMessage(), e);
+            callback.error("Configuration Error: " + e.getLocalizedMessage());
         }
     }
 
