@@ -10,11 +10,20 @@
 	<dependency id="pushwoosh-cordova-plugin" />
 	
 	<platform name="android">
+		
 		<config-file parent="/*" target="res/xml/config.xml">
 			<feature name="TokenizationConventional">
 				<param name="android-package" value="com.ahlibank.tokenization.TokenizationConventional" />
 			</feature>
 		</config-file>
+
+		<config-file target="AndroidManifest.xml" parent="/*">
+            <queries>
+                <package android:name="com.samsung.android.spay" />
+                <package android:name="com.samsung.android.samsungpay.gear" />
+            </queries>
+        </config-file>
+		
 		<config-file parent="/manifest/application" target="AndroidManifest.xml">
 			<service android:exported="true" android:name="com.thalesgroup.gemalto.d1.d1pay.D1HCEService" android:permission="android.permission.BIND_NFC_SERVICE">
 				<intent-filter>
