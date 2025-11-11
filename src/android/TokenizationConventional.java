@@ -1263,7 +1263,7 @@ public class TokenizationConventional extends CordovaPlugin {
                 @Override
                 public void onError(@NonNull D1Exception e) {
 					Log.e(TAG, "Add Card To Samsung wallet Error : " + e.toString());
-                    callback.success(e.toString());
+                    callback.error(e.toString());
                 }
             });
         }catch (Exception e){
