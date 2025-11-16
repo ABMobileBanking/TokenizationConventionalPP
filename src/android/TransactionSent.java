@@ -44,7 +44,6 @@ public class TransactionSent extends Activity {
             setContentView(getApplication().getResources().getIdentifier("transaction_sent_drop2", "layout", packageName));
 
             // Initialize UI components
-            TextView headerName = findViewById(getResourceId("headerName", "id"));
             ImageView imageView = findViewById(getResourceId("cardImage", "id"));
             ImageView backButton = findViewById(getResourceId("backBtn", "id"));
             txtViewCardNum = findViewById(getResourceId("cardNum", "id"));
@@ -54,11 +53,6 @@ public class TransactionSent extends Activity {
 
             // Get the data from the intent
             Intent intent = getIntent();
-            String headerNameText = intent.getStringExtra("HeaderName");
-            if (headerNameText != null) {
-                headerName.setText(headerNameText);
-            }
-
             String cardID = intent.getStringExtra("CardID");
             String fPAN = null;
             SharedPreferences sharedPreferences = getSharedPreferences("AHLIBANK", Context.MODE_PRIVATE);
