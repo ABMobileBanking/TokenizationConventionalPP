@@ -27,7 +27,6 @@ public class TransactionSent extends Activity {
     private static final String TAG = "Outsystems==>" + CoreUtils.class.getSimpleName();
 
     private TextView txtViewCardNum;
-    private TextView txtViewExpDate;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,7 +48,6 @@ public class TransactionSent extends Activity {
             ImageView imageView = findViewById(getResourceId("cardImage", "id"));
             Button backButton = findViewById(getResourceId("backBtn", "id"));
             txtViewCardNum = findViewById(getResourceId("cardNum", "id"));
-            txtViewExpDate = findViewById(getResourceId("expDate", "id"));
 
             // Set up back button listener
             backButton.setOnClickListener(v -> finish());
@@ -62,13 +60,15 @@ public class TransactionSent extends Activity {
             }
 
             String cardID = intent.getStringExtra("CardID");
+            String fPAN = null;
             SharedPreferences sharedPreferences = getSharedPreferences("AHLIBANK", Context.MODE_PRIVATE);
 
             // Handle cardID and SharedPreferences fallback
             if (cardID == null || cardID.trim().isEmpty()) {
                 cardID = sharedPreferences.getString("CARDID", null);
-                if (cardID != null) {
-                    Log.i(TAG, "Contactless transaction without opening app, CARD ID: " + cardID);
+                fPAN = sharedPreferences.getString("LAST4FPAN", null);
+                if (cardID != null && fPAN != null) {
+                    Log.i(TAG, "Contactless transaction without opening app, CARD ID: " + cardID+ "and FPAN : "+fPAN);
                 } else {
                     Log.e(TAG, "CardID is null or empty and not found in SharedPreferences");
                     return;  // Exit if no valid cardID is available
@@ -93,12 +93,9 @@ public class TransactionSent extends Activity {
             }
 
             // If the CardID is empty, use data from SharedPreferences
-            if (cardID.isEmpty()) {
-                String fPAN = "**** **** **** " + sharedPreferences.getString("LAST4FPAN", "");
-                String expDate = sharedPreferences.getString("EXPDATE", "");
-                String formattedDate = formatExpirationDate(expDate);
-                txtViewCardNum.setText(fPAN);
-                txtViewExpDate.setText(formattedDate);
+            if (fPAN != null && !fPAN.isEmpty()) {
+                String maskedCard = "XXXX XXXX XXXX " +fPAN;
+                txtViewCardNum.setText(maskedCard);
                 return;
             }
 
@@ -119,11 +116,6 @@ public class TransactionSent extends Activity {
         return getResources().getIdentifier(name, type, getPackageName());
     }
 
-    // Helper method to format expiration date
-    private String formatExpirationDate(String expDate) {
-        return String.format("%s/%s", expDate.substring(0, 2), expDate.substring(2, 4));
-    }
-
     // Fetch and display tokenized card data
     private void fetchCardData(String cardID) {
         try {
@@ -135,13 +127,10 @@ public class TransactionSent extends Activity {
             D1Task.Callback<CardMetadata> cardDataCallback = new D1Task.Callback<CardMetadata>() {
                 @Override
                 public void onSuccess(CardMetadata cardMetadata) {
-                    String last4FPAN = cardMetadata.getLast4Pan();
-                    String expDate = cardMetadata.getExpiryDate();
-                    String formattedDate = formatExpirationDate(expDate);
+                    String maskedCard = "XXXX XXXX XXXX " + cardMetadata.getLast4Pan();
+                    txtViewCardNum.setText(maskedCard);
 
-                    Log.i(TAG, "Card metadata fetched successfully. Last 4 FPAN: " + last4FPAN + " | Expiration Date: " + formattedDate);
-                    txtViewCardNum.setText("**** **** **** " + last4FPAN);
-                    txtViewExpDate.setText(formattedDate);
+                    Log.i(TAG, "Card metadata fetched successfully. Last 4 FPAN: " + cardMetadata.getLast4Pan());
                 }
 
                 @Override

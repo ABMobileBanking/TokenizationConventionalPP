@@ -1,112 +1,106 @@
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/main_browse_fragment"
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    tools:context="com.abo.convtokenization.ConvTokenization.TransactionSent"
-    tools:deviceIds="tv"
-    tools:ignore="MergeRootFrame">
+    android:background="#F2F2F2">
 
-    <LinearLayout
+    <!-- Top Toolbar -->
+    <RelativeLayout
+        android:id="@+id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="80dp"
-        android:background="@drawable/drop2_header"
-        android:orientation="horizontal">
+        android:layout_height="100dp"
+        android:background="@drawable/drop2_header">
 
-        <RelativeLayout
-            android:layout_width="50dp"
-            android:layout_height="wrap_content">
-
-            <ImageView
-                android:layout_width="25dp"
-                android:layout_height="match_parent"
-                android:layout_marginLeft="15dp"
-                android:src="@drawable/header_cross" />
-
-            <Button
-                android:id="@+id/backBtn"
-                android:layout_width="50dp"
-                android:layout_height="match_parent"
-                android:background="#00000000"
-                android:text=""
-                android:contentDescription="Back Button"/>
-        </RelativeLayout>
-
+        <!-- Back Button -->
         <ImageView
-            android:layout_width="25dp"
-            android:layout_height="match_parent"
-            android:src="@drawable/ring_white" />
+            android:id="@+id/backBtn"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginStart="20dp"
+            android:layout_centerVertical="true"
+            android:src="@drawable/header_cross" />
 
+        <!-- Title -->
         <TextView
             android:id="@+id/headerName"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:padding="15dp"
-            android:text="ahlipay"
-            android:textColor="#FFFFFF"
-            android:textSize="17sp" />
-    </LinearLayout>
+            android:layout_centerVertical="true"
+            android:layout_toRightOf="@id/backBtn"
+            android:layout_marginStart="16dp"
+            android:text="ahli pay"
+            android:textSize="20sp"
+            android:textColor="@android:color/white"
+            android:textStyle="bold" />
+    </RelativeLayout>
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical">
 
-        <RelativeLayout
-            android:layout_width="fill_parent"
-            android:layout_height="300dp">
+    <!-- CARD AREA (Rounded Corners) -->
+    <FrameLayout
+        android:id="@+id/cardContainer"
+        android:layout_width="320dp"
+        android:layout_height="190dp"
+        android:layout_below="@id/toolbar"
+        android:layout_marginTop="24dp"
+        android:layout_centerHorizontal="true"
+        android:background="@drawable/rounded_card_bg"
+        android:clipToOutline="true">
 
-            <ImageView
-                android:id="@+id/cardImage"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:padding="40dp"
-                android:src="@drawable/dummy_card_image" />
+        <!-- Card Image -->
+        <ImageView
+            android:id="@+id/cardImage"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:src="@drawable/dummy_card_image" />
 
-            <TextView
-                android:id="@+id/cardNum"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_alignParentBottom="true"
-                android:layout_marginLeft="70dp"
-                android:layout_marginBottom="120dp"
-                android:textColor="#FFFFFF"
-                android:textSize="15sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/expDate"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_alignParentBottom="true"
-                android:layout_marginLeft="70dp"
-                android:layout_marginBottom="90dp"
-                android:textColor="#FFFFFF"
-                android:textSize="15sp"
-                android:textStyle="bold" />
-        </RelativeLayout>
-
-        <LinearLayout
+        <!-- MASKED CARD NUMBER ONLY -->
+        <TextView
+            android:id="@+id/cardNum"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:orientation="horizontal">
+            android:layout_gravity="bottom|start"
+            android:layout_marginStart="16dp"
+            android:layout_marginBottom="20dp"
+            android:text="XXXX XXXX XXXX 1234"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:shadowColor="#AA000000"
+            android:shadowDx="1"
+            android:shadowDy="1"
+            android:shadowRadius="3" />
+    </FrameLayout>
 
-            <ImageView
-                android:layout_width="50dp"
-                android:layout_height="50dp"
-                android:layout_gravity="center"
-                android:src="@drawable/drop2_success" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:gravity="center_horizontal"
-                android:padding="10dp"
-                android:text="Done"
-                android:textColor="#005595"
-                android:textSize="20sp" />
-        </LinearLayout>
+    <!-- SUCCESS ROW INLINE -->
+    <LinearLayout
+        android:id="@+id/successRow"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_centerHorizontal="true"
+        android:layout_below="@id/cardContainer"
+        android:layout_marginTop="40dp">
+
+        <!-- Tick Icon -->
+        <ImageView
+            android:id="@+id/checkIcon"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:src="@drawable/drop2_success" />
+
+        <!-- Done Text -->
+        <TextView
+            android:id="@+id/doneText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingStart="10dp"
+            android:text="Done"
+            android:textSize="20sp"
+            android:textColor="#0A57A5"
+            android:textStyle="bold" />
     </LinearLayout>
-</LinearLayout>
+
+</RelativeLayout>
