@@ -46,7 +46,7 @@ public class TransactionSent extends Activity {
             // Initialize UI components
             TextView headerName = findViewById(getResourceId("headerName", "id"));
             ImageView imageView = findViewById(getResourceId("cardImage", "id"));
-            Button backButton = findViewById(getResourceId("backBtn", "id"));
+            ImageView backButton = findViewById(getResourceId("backBtn", "id"));
             txtViewCardNum = findViewById(getResourceId("cardNum", "id"));
 
             // Set up back button listener
