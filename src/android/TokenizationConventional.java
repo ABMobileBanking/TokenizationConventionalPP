@@ -1092,7 +1092,6 @@ public class TokenizationConventional extends CordovaPlugin {
                     new android.os.Handler().postDelayed(() -> {
                         final Intent intent = new Intent(cordova.getActivity(), TransactionSent.class);
                         intent.setFlags(FLAG_ACTIVITY_NEW_TASK);
-                        intent.putExtra("HeaderName", "Ahli Pay");
                         intent.putExtra("CardID", mCardId == null ? "" : mCardId);
                         cordova.getActivity().runOnUiThread(() -> {
                             cordova.getActivity().startActivity(intent);
@@ -1110,6 +1109,7 @@ public class TokenizationConventional extends CordovaPlugin {
 
             if (error.toString().contains("PAYMENT_WRONG_STATE")) {
                 deactivate();
+                doAuthenticate();
             }
             // All current state values are no longer relevant.
             resetState();
