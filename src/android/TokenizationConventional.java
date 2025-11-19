@@ -984,10 +984,6 @@ public class TokenizationConventional extends CordovaPlugin {
 			
             // D1Pay configuration : register contactless transaction callback
             Log.i(TAG, "doManualPayment Card ID : " + cardID);
-			if (mD1PayTransactionListener != null) {
-                mD1PayTransactionListener.deactivate();
-            }
-
 			D1PayConfigParams.getInstance().setManualModeContactlessTransactionListener(mD1PayTransactionListener = new D1PayContactlessTransactionListener(cordova.getActivity(), cardID));
 			mD1Task.getD1PayWallet().startManualModePayment(cardID);
 			
@@ -1071,7 +1067,6 @@ public class TokenizationConventional extends CordovaPlugin {
                 @Override
                 public void onTimeout() {
                     updateAmountAndCurrency();
-                    deactivate();
                     updateState(PaymentState.STATE_ON_ERROR, new PaymentErrorData(null, "Timer exceeded", mAmount, mCurrency, mCardId));
                 }
             });
@@ -1096,7 +1091,7 @@ public class TokenizationConventional extends CordovaPlugin {
                         cordova.getActivity().runOnUiThread(() -> {
                             cordova.getActivity().startActivity(intent);
                         });
-                    }, 800); // <-- 0.8 second delay before starting TransactionSent
+                    }, 100); // <-- 0.1 second delay before starting TransactionSent
                 });
             } catch (Exception e) {
                 Log.e(TAG, "onTransactionCompleted Exception : " + e.toString());
@@ -1107,13 +1102,14 @@ public class TokenizationConventional extends CordovaPlugin {
         public void onError(@NonNull final D1Exception error) {
             Log.e(TAG, "onError : " + error.toString());
 
+            // All current state values are no longer relevant.
+            resetState();
+            updateState(PaymentState.STATE_ON_ERROR,new PaymentErrorData(error.getErrorCode(), error.getLocalizedMessage(), mAmount, mCurrency, mCardId));
+
             if (error.toString().contains("PAYMENT_WRONG_STATE")) {
                 deactivate();
                 doAuthenticate();
             }
-            // All current state values are no longer relevant.
-            resetState();
-            updateState(PaymentState.STATE_ON_ERROR,new PaymentErrorData(error.getErrorCode(), error.getLocalizedMessage(), mAmount, mCurrency, mCardId));
         }
 
         private void updateAmountAndCurrency() {
