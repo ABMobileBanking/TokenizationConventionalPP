@@ -100,6 +100,22 @@ public class TokenizationConventional extends CordovaPlugin {
         return instance;
     }
 
+    private boolean isPaymentActive = false;
+
+    private boolean isDeactivating = false;
+
+    private synchronized void safeDeactivate() {
+        if (isDeactivating) return;
+        isDeactivating = true;
+
+        try { mD1PayTransactionListener.deactivate(); }
+        catch (Exception e) { Log.e(TAG, "deactivate error: " + e); }
+
+        new android.os.Handler().postDelayed(() -> {
+            isDeactivating = false;
+        }, 1500);   // Important for Samsung A15
+    }
+
 	@Override
     public void initialize(CordovaInterface cordova, CordovaWebView webView) {
         super.initialize(cordova, webView);
@@ -984,6 +1000,7 @@ public class TokenizationConventional extends CordovaPlugin {
 			
             // D1Pay configuration : register contactless transaction callback
             Log.i(TAG, "doManualPayment Card ID : " + cardID);
+            isPaymentActive = true;
 			D1PayConfigParams.getInstance().setManualModeContactlessTransactionListener(mD1PayTransactionListener = new D1PayContactlessTransactionListener(cordova.getActivity(), cardID));
 			mD1Task.getD1PayWallet().startManualModePayment(cardID);
 			
@@ -1066,6 +1083,9 @@ public class TokenizationConventional extends CordovaPlugin {
 
                 @Override
                 public void onTimeout() {
+                    Log.i(TAG, "TimeOut");
+                    if (!isPaymentActive) return;  // IMPORTANT
+                    isPaymentActive = false;
                     updateAmountAndCurrency();
                     updateState(PaymentState.STATE_ON_ERROR, new PaymentErrorData(null, "Timer exceeded", mAmount, mCurrency, mCardId));
                 }
@@ -1077,6 +1097,10 @@ public class TokenizationConventional extends CordovaPlugin {
         @Override
         public void onTransactionCompleted() {
             try {
+
+                if (!isPaymentActive) return;  // IMPORTANT
+                isPaymentActive = false;
+
                 updateAmountAndCurrency();
                 updateState(PaymentState.STATE_ON_TRANSACTION_COMPLETED, new PaymentData(mAmount, mCurrency, mCardId));
 
@@ -1091,7 +1115,7 @@ public class TokenizationConventional extends CordovaPlugin {
                         cordova.getActivity().runOnUiThread(() -> {
                             cordova.getActivity().startActivity(intent);
                         });
-                    }, 100); // <-- 0.1 second delay before starting TransactionSent
+                    }, 1500); // <-- 1.5 second delay before starting TransactionSent
                 });
             } catch (Exception e) {
                 Log.e(TAG, "onTransactionCompleted Exception : " + e.toString());
@@ -1102,12 +1126,15 @@ public class TokenizationConventional extends CordovaPlugin {
         public void onError(@NonNull final D1Exception error) {
             Log.e(TAG, "onError : " + error.toString());
 
+            if (!isPaymentActive) return;  // IMPORTANT
+                isPaymentActive = false;
+
             // All current state values are no longer relevant.
             resetState();
             updateState(PaymentState.STATE_ON_ERROR,new PaymentErrorData(error.getErrorCode(), error.getLocalizedMessage(), mAmount, mCurrency, mCardId));
 
             if (error.toString().contains("PAYMENT_WRONG_STATE")) {
-                deactivate();
+                safeDeactivate();
                 doAuthenticate();
             }
         }
@@ -1352,4 +1379,6 @@ public class TokenizationConventional extends CordovaPlugin {
             Log.e(TAG, "mD1Task is null in onActivityResult");
         }
     }
+
+
 }
