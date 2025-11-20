@@ -1053,6 +1053,7 @@ public class TokenizationConventional extends CordovaPlugin {
         @Override
         public void onAuthenticationRequired(@NonNull final VerificationMethod method) {
             Log.i(TAG, "onAuthenticationRequired");
+            updateAmountAndCurrency();
         }
 
         @Override
