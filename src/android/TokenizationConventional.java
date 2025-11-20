@@ -395,6 +395,7 @@ public class TokenizationConventional extends CordovaPlugin {
             final D1PayConfigParams d1PayConfigParams = D1PayConfigParams.getInstance();
             mD1PayTransactionListener = new D1PayContactlessTransactionListener(cordova.getActivity(), null);
             d1PayConfigParams.setContactlessTransactionListener(mD1PayTransactionListener);
+            d1PayConfigParams.setManualModeContactlessTransactionListener(mD1PayTransactionListener);
 
             d1PayConfigParams.setReplenishAuthenticationUIStrings(
                     "Replenishment Title",
@@ -997,7 +998,6 @@ public class TokenizationConventional extends CordovaPlugin {
             // D1Pay configuration : register contactless transaction callback
             Log.i(TAG, "doManualPayment Card ID : " + cardID);
             isPaymentActive = true;
-			D1PayConfigParams.getInstance().setManualModeContactlessTransactionListener(mD1PayTransactionListener = new D1PayContactlessTransactionListener(cordova.getActivity(), cardID));
 			mD1Task.getD1PayWallet().startManualModePayment(cardID);
 			
         } catch (Exception e) {
@@ -1089,7 +1089,7 @@ public class TokenizationConventional extends CordovaPlugin {
                     intent.setFlags(FLAG_ACTIVITY_NEW_TASK);
                     intent.putExtra("CardID", mCardId == null ? "" : mCardId);
                     cordova.getActivity().startActivity(intent);
-}               , 500);
+}               , 2800);
 
                 
             } catch (Exception e) {
