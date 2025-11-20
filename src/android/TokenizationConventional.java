@@ -113,7 +113,7 @@ public class TokenizationConventional extends CordovaPlugin {
 
         new android.os.Handler().postDelayed(() -> {
             isDeactivating = false;
-        }, 1500);   // Important for Samsung A15
+        }, 1500);
     }
 
 	@Override
@@ -263,10 +263,6 @@ public class TokenizationConventional extends CordovaPlugin {
                 case "d1PushAddDigitalCardToSamsungPay":
                     d1PushAddDigitalCardToSamsungPay(args.getString(0));
                     break;
-					
-				case "deactivatePaymentState":
-					mD1PayTransactionListener.deactivate();
-					break;
 					
 				case "GPayCardState":
 					checkD1PushCardDigitizationStateGPay(args.getString(0));
@@ -1046,28 +1042,17 @@ public class TokenizationConventional extends CordovaPlugin {
         public D1PayContactlessTransactionListener(@NonNull final Context context, final String cardId) {
             super();
             mCardId = cardId;
-
-            resetState();
         }
 
         @Override
         public void onTransactionStarted() {
-            // Display transaction is ongoing
+            isPaymentActive = true;
             Log.i(TAG, "onTransactionStarted");
-            updateState(PaymentState.STATE_ON_TRANSACTION_STARTED, new PaymentData(mAmount, mCurrency, mCardId));
         }
 
         @Override
         public void onAuthenticationRequired(@NonNull final VerificationMethod method) {
             Log.i(TAG, "onAuthenticationRequired");
-
-            // All current state values are no longer relevant.
-            resetState();
-
-            updateAmountAndCurrency();
-
-            // Update state and notify everyone.
-            updateState(PaymentState.STATE_ON_AUTHENTICATION_REQUIRED, new PaymentData(mAmount, mCurrency, mCardId));
         }
 
         @Override
@@ -1084,39 +1069,28 @@ public class TokenizationConventional extends CordovaPlugin {
                 @Override
                 public void onTimeout() {
                     Log.i(TAG, "TimeOut");
-                    if (!isPaymentActive) return;  // IMPORTANT
+                    if (!isPaymentActive) return;  
                     isPaymentActive = false;
                     updateAmountAndCurrency();
-                    updateState(PaymentState.STATE_ON_ERROR, new PaymentErrorData(null, "Timer exceeded", mAmount, mCurrency, mCardId));
                 }
             });
-
-            updateState(PaymentState.STATE_ON_READY_TO_TAP, new PaymentData(mAmount, mCurrency, mCardId));
         }
 
         @Override
         public void onTransactionCompleted() {
             try {
-
-                if (!isPaymentActive) return;  // IMPORTANT
+                if (!isPaymentActive) return;  
                 isPaymentActive = false;
-
                 updateAmountAndCurrency();
-                updateState(PaymentState.STATE_ON_TRANSACTION_COMPLETED, new PaymentData(mAmount, mCurrency, mCardId));
-
                 Log.i(TAG, "onTransactionCompleted Card ID : " + mCardId);
+                new Handler().postDelayed(() -> {
+                    Intent intent = new Intent(cordova.getActivity(), TransactionSent.class);
+                    intent.setFlags(FLAG_ACTIVITY_NEW_TASK);
+                    intent.putExtra("CardID", mCardId == null ? "" : mCardId);
+                    cordova.getActivity().startActivity(intent);
+}               , 500);
 
-                // Delay starting new Activity slightly to give NFC service time to finish
-                CoreUtils.getInstance().runInMainThread(() -> {
-                    new android.os.Handler().postDelayed(() -> {
-                        final Intent intent = new Intent(cordova.getActivity(), TransactionSent.class);
-                        intent.setFlags(FLAG_ACTIVITY_NEW_TASK);
-                        intent.putExtra("CardID", mCardId == null ? "" : mCardId);
-                        cordova.getActivity().runOnUiThread(() -> {
-                            cordova.getActivity().startActivity(intent);
-                        });
-                    }, 1500); // <-- 1.5 second delay before starting TransactionSent
-                });
+                
             } catch (Exception e) {
                 Log.e(TAG, "onTransactionCompleted Exception : " + e.toString());
             }
@@ -1126,57 +1100,34 @@ public class TokenizationConventional extends CordovaPlugin {
         public void onError(@NonNull final D1Exception error) {
             Log.e(TAG, "onError : " + error.toString());
 
-            if (!isPaymentActive) return;  // IMPORTANT
+            if (!isPaymentActive) return;  
                 isPaymentActive = false;
-
-            // All current state values are no longer relevant.
-            resetState();
-            updateState(PaymentState.STATE_ON_ERROR,new PaymentErrorData(error.getErrorCode(), error.getLocalizedMessage(), mAmount, mCurrency, mCardId));
 
             if (error.toString().contains("PAYMENT_WRONG_STATE")) {
                 safeDeactivate();
-                doAuthenticate();
+                wipeTxn();
             }
         }
 
         private void updateAmountAndCurrency() {
             Log.i(TAG, "updateAmountAndCurrency");
             final TransactionData transactionData = getTransactionData();
-            if (transactionData == null) {
+            if (transactionData != null) {
+                mAmount = transactionData.getAmount();
+                mCurrency = "OMR";
+                transactionData.wipe();
+            } else {
                 mAmount = -1.0;
                 mCurrency = null;
-            } else {
-                mAmount = getTransactionData().getAmount();
-                mCurrency = "OMR";
             }
+        }
 
+        private void wipeTxn(){
+            Log.i(TAG, "Wipe Transactions init");
+            final TransactionData transactionData = getTransactionData();
             if (transactionData != null) {
+                Log.i(TAG, "Transactions Wiped");
                 transactionData.wipe();
-            }
-        }
-
-        private void resetState() {
-            Log.i(TAG, "resetState");
-            mAmount = 0.0;
-            mCurrency = null;
-        }
-
-    
-        protected void updateState(final PaymentState state, final PaymentData data) {
-            // Store last state so it can be read onResume when app was not in foreground.
-            Log.i(TAG, "updateState : " + state);
-            // Notify rest of the application in UI thread.
-            CoreUtils.getInstance().runInMainThread(() -> {
-                final Intent intent = new Intent(cordova.getActivity(), cordova.getActivity().getClass());
-                intent.setFlags(FLAG_ACTIVITY_NEW_TASK);
-                intent.putExtra("STATE_EXTRA_KEY", state);
-                intent.putExtra("PAYMENT_DATA_EXTRA_KEY", data);
-                cordova.getActivity().runOnUiThread(() -> {
-                    cordova.getActivity().startActivity(intent);
-                });
-            });
-            if (state == PaymentState.STATE_ON_AUTHENTICATION_REQUIRED) {
-                doAuthenticate();
             }
         }
 
