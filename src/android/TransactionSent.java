@@ -75,31 +75,26 @@ public class TransactionSent extends Activity {
             byte[] cardData = CoreUtils.getInstance().readFromFile(getApplicationContext(), cardID);
             if (cardData == null || cardData.length == 0) {
                 Log.e(TAG, "Failed to read data for CardID: " + cardID + ". Data is null or empty.");
-                return;
+            }else{
+                Bitmap bitmap = BitmapFactory.decodeByteArray(cardData, 0, cardData.length);
+                if (bitmap != null) {
+                    Log.i(TAG, "Bitmap received successfully");
+                    imageView.setImageBitmap(bitmap);
+                } else {
+                    Log.e(TAG, "Failed to decode bitmap for CardID: " + cardID);
+                }
             }
 
-            Bitmap bitmap = BitmapFactory.decodeByteArray(cardData, 0, cardData.length);
-            if (bitmap != null) {
-                Log.i(TAG, "Bitmap received successfully");
-                imageView.setImageBitmap(bitmap);
-            } else {
-                Log.e(TAG, "Failed to decode bitmap for CardID: " + cardID);
-            }
-
-            // If the CardID is empty, use data from SharedPreferences
             if (fPAN != null && !fPAN.isEmpty()) {
+                Log.i(TAG, "Shared Preference Last4PAN : " + fPAN);
                 String maskedCard = "XXXX XXXX XXXX " +fPAN;
                 txtViewCardNum.setText(maskedCard);
-                return;
-            }
-
-            // If CardID is valid, fetch tokenized card data
-            if (!cardID.isEmpty()) {
+            }else{
                 Log.i(TAG, "Fetching tokenized card details for CardID: " + cardID);
                 fetchCardData(cardID);
-            } else {
-                Log.e(TAG, "CardID is invalid; skipping tokenized card detail retrieval");
             }
+
+            
         } catch (Exception e) {
             Log.e(TAG, "TransactionSent On Error: " + e.toString());
         }

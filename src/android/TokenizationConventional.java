@@ -14,6 +14,7 @@ import android.nfc.cardemulation.CardEmulation;
 import android.os.Build;
 import android.util.Base64;
 import android.util.Log;
+import android.os.Looper;
 
 
 import androidx.annotation.NonNull;
@@ -74,6 +75,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.io.ByteArrayInputStream;
 import java.security.MessageDigest;
 import java.security.cert.Certificate;
@@ -88,35 +90,20 @@ public class TokenizationConventional extends CordovaPlugin {
     private D1PayContactlessTransactionListener mD1PayTransactionListener;
     private CallbackContext callback;
     private static final String TAG = "Outsystems==>" + CoreUtils.class.getSimpleName();
-
     public String currentCardID;
-	
-	private static TokenizationConventional instance;
-	public TokenizationConventional(){
+    private String mCardId;
+
+    private static TokenizationConventional instance;
+
+    public TokenizationConventional() {
         instance = this;
     }
-	
-	public static TokenizationConventional getInstance(){
+
+    public static TokenizationConventional getInstance() {
         return instance;
-    }
+    }    
 
-    private boolean isPaymentActive = false;
-
-    private boolean isDeactivating = false;
-
-    private synchronized void safeDeactivate() {
-        if (isDeactivating) return;
-        isDeactivating = true;
-
-        try { mD1PayTransactionListener.deactivate(); }
-        catch (Exception e) { Log.e(TAG, "deactivate error: " + e); }
-
-        new android.os.Handler().postDelayed(() -> {
-            isDeactivating = false;
-        }, 1500);
-    }
-
-	@Override
+    @Override
     public void initialize(CordovaInterface cordova, CordovaWebView webView) {
         super.initialize(cordova, webView);
         cordova.setActivityResultCallback(this);
@@ -157,7 +144,7 @@ public class TokenizationConventional extends CordovaPlugin {
         }
     }
 
-	
+
     @Override
     public boolean execute(String action, JSONArray args, CallbackContext callbackContext) throws JSONException {
         try {
@@ -177,8 +164,8 @@ public class TokenizationConventional extends CordovaPlugin {
                     final byte[] modulus = sModulus.getBytes();
                     final String digitalCardUrl = args.getString(4);
                     final String consumerId = args.getString(5);
-					final String huaweiAppID = args.getString(6);
-					final String samsungServiceID = args.getString(7);
+                    final String huaweiAppID = args.getString(6);
+                    final String samsungServiceID = args.getString(7);
                     final String visaClientAppId = args.getString(8);
 
                     Log.i(TAG, "D1 SDK Configure Info :\n" +
@@ -188,10 +175,10 @@ public class TokenizationConventional extends CordovaPlugin {
                             "modulus: " + sModulus + "\n" +
                             "digitalCardUrl: " + digitalCardUrl + "\n" +
                             "consumerId: " + consumerId + "\n" +
-                            "samsungServiceID: "+samsungServiceID + "\n" +
-                            "visaClientAppId: "+visaClientAppId);
+                            "samsungServiceID: " + samsungServiceID + "\n" +
+                            "visaClientAppId: " + visaClientAppId);
 
-                    configure(cordova.getActivity(), cordova.getActivity(), serviceUrl, issuerId, exponent, modulus, digitalCardUrl, consumerId,samsungServiceID,visaClientAppId);
+                    configure(cordova.getActivity(), cordova.getActivity(), serviceUrl, issuerId, exponent, modulus, digitalCardUrl, consumerId, samsungServiceID, visaClientAppId);
                     pushToken(huaweiAppID);
                     break;
 
@@ -247,10 +234,6 @@ public class TokenizationConventional extends CordovaPlugin {
                 case "setDefaultPaymentApp":
                     setDefaultPaymentApp();
                     break;
-					
-				case "getD1PayTxnHistory":
-                    getD1PayTxnHistory(args.getString(0));
-                    break;
 
                 case "checkD1PushCardDigitizationState":
                     checkD1PushCardDigitizationStateSamsungPay(args.getString(0));
@@ -263,26 +246,26 @@ public class TokenizationConventional extends CordovaPlugin {
                 case "d1PushAddDigitalCardToSamsungPay":
                     d1PushAddDigitalCardToSamsungPay(args.getString(0));
                     break;
-					
-				case "GPayCardState":
-					checkD1PushCardDigitizationStateGPay(args.getString(0));
-					break;
 
-				case "AddCardGPay":
-					addCardToGoogleWallet(args.getString(0));
-					break;
-					
+                case "GPayCardState":
+                    checkD1PushCardDigitizationStateGPay(args.getString(0));
+                    break;
+
+                case "AddCardGPay":
+                    addCardToGoogleWallet(args.getString(0));
+                    break;
+
                 default:
                     callbackContext.error("undefined action");
                     return false;
             }
         } catch (Exception e) {
-            Log.i(TAG, "Execute Exception : "+e.toString());
+            Log.i(TAG, "Execute Exception : " + e.toString());
         }
         return true;
     }
-	
-	private void pushToken(String appID) {
+
+    private void pushToken(String appID) {
         try {
 
             HuaweiApiAvailability apiAvailability = HuaweiApiAvailability.getInstance();
@@ -299,7 +282,7 @@ public class TokenizationConventional extends CordovaPlugin {
             Log.e(TAG, "pushToken Exception : " + e.toString());
         }
     }
-	
+
     private static String byte2Hex(byte[] input) {
         StringBuilder buf = new StringBuilder();
         char[] hex = new char[]{
@@ -312,8 +295,8 @@ public class TokenizationConventional extends CordovaPlugin {
         }
         return buf.toString();
     }
-	
-	private void getSetHMSToken(String appID) {
+
+    private void getSetHMSToken(String appID) {
         try {
             new Thread(() -> {
                 try {
@@ -324,16 +307,16 @@ public class TokenizationConventional extends CordovaPlugin {
                     String token = com.huawei.hms.aaid.HmsInstanceId
                             .getInstance(cordova.getActivity())
                             .getToken(appId, "HCM"); // "HCM" = Huawei Cloud Messaging
-							
 
-                    Log.i(TAG, "Huawei Push Token: " + "HMS:"+token);
+
+                    Log.i(TAG, "Huawei Push Token: " + "HMS:" + token);
 
                     cordova.getActivity().runOnUiThread(() -> {
-                        mD1Task.updatePushToken("HMS:"+token, new D1Task.Callback<Void>() {
+                        mD1Task.updatePushToken("HMS:" + token, new D1Task.Callback<Void>() {
                             @Override
                             public void onSuccess(@Nullable Void ignored) {
                                 // Proceed with subsequent flows.
-                                Log.i(TAG, "HMS Push UpdatePushToken Success: " + "HMS:"+token);
+                                Log.i(TAG, "HMS Push UpdatePushToken Success: " + "HMS:" + token);
                             }
 
                             @Override
@@ -452,9 +435,9 @@ public class TokenizationConventional extends CordovaPlugin {
 
                 @Override
                 public void onError(@NonNull final D1Exception exception) {
-                    callback.error("Messgae : "+exception.getMessage()+" | Error Code : "+exception.getErrorCode());
-					//callback.error(createJsonError(Collections.singletonList(exception)));
-					Log.e(TAG, "D1 SDK Login Error : Messgae : " + exception.getMessage()+" | Error Code : "+exception.getErrorCode());
+                    callback.error("Messgae : " + exception.getMessage() + " | Error Code : " + exception.getErrorCode());
+                    //callback.error(createJsonError(Collections.singletonList(exception)));
+                    Log.e(TAG, "D1 SDK Login Error : Messgae : " + exception.getMessage() + " | Error Code : " + exception.getErrorCode());
                 }
             });
         } catch (Exception e) {
@@ -624,7 +607,7 @@ public class TokenizationConventional extends CordovaPlugin {
             for (final D1Exception exception : exceptions) {
                 final Map<String, Object> jsonMap = new HashMap<>();
                 jsonMap.put("message", exception.getMessage());
-				jsonMap.put("code", exception.getErrorCode());
+                jsonMap.put("code", exception.getErrorCode());
                 json.add(jsonMap);
             }
 
@@ -641,60 +624,7 @@ public class TokenizationConventional extends CordovaPlugin {
         return null;
     }
 
-    private void replenishment(String cardIdToReplenish, boolean isForced) {
-        /**
-         * Specific for Visa, CVM might be required on replenishment
-         * Hence, Application may need to check if it is on background or foreground
-         */
-        DeviceAuthenticationCallback cvmCallback = new DeviceAuthenticationCallback() {
-            @Override
-            public void onSuccess() {
-                // User authentication is success
-                Log.i(TAG, "cvmCallback onSuccess");
-            }
-
-            @Override
-            public void onFailed() {
-                // User authentication failed, the issuer app may ask end user to retry
-                Log.i(TAG, "cvmCallback onFailed");
-            }
-
-            @Override
-            public void onHelp(int fpCode, @NonNull CharSequence fpDetail) {
-                // For BIOMETRIC only
-                Log.i(TAG, "cvmCallback onHelp");
-                // Issuer application may show the fpDetail message to the end user
-            }
-
-            @Override
-            public void onError(int fpErrorCode) {
-                // For BIOMETRIC only
-                Log.i(TAG, "cvmCallback onError " + fpErrorCode);
-                // Error happened while doing BIOMETRIC authenticate (e.g using wrong finger too many times and the sensor is locked)
-                // Depending on the fpErrorCode, the issuer application should troubleshoot the end user.
-            }
-        };
-
-        if (cardIdToReplenish != null) {
-            D1PayWallet d1PayWallet = mD1Task.getD1PayWallet();
-            d1PayWallet.replenish(cardIdToReplenish, isForced, cvmCallback,
-                    new D1Task.Callback<Void>() {
-                        @Override
-                        public void onSuccess(Void ignored) {
-                            // replenishment completed
-                            Log.i(TAG, "replenish onSuccess ");
-                        }
-
-                        @Override
-                        public void onError(@NonNull D1Exception exception) {
-                            //Refer to D1 SDK Integration – Error Management section
-                            Log.i(TAG, "replenish onError " + exception.toString());
-                        }
-                    });
-        }
-    }
-
-    private void getCardData(String cardID){
+    private void getCardData(String cardID) {
         try {
             D1Task.Callback<CardMetadata> getCardDataCallback = new D1Task.Callback<CardMetadata>() {
                 @Override
@@ -702,7 +632,7 @@ public class TokenizationConventional extends CordovaPlugin {
                     String last4FPAN = cardMetadata.getLast4Pan();
                     String fPANExpDate = cardMetadata.getExpiryDate();
 
-                    callback.success(last4FPAN+","+fPANExpDate);
+                    callback.success(last4FPAN + "," + fPANExpDate);
                 }
 
                 @Override
@@ -710,8 +640,8 @@ public class TokenizationConventional extends CordovaPlugin {
                     callback.error(e.toString());
                 }
             };
-            mD1Task.getCardMetadata(cardID,getCardDataCallback);
-        }catch (Exception e){
+            mD1Task.getCardMetadata(cardID, getCardDataCallback);
+        } catch (Exception e) {
             callback.error(e.toString());
             Log.e(TAG, "getCardMetaData onError : " + e.toString());
         }
@@ -721,9 +651,13 @@ public class TokenizationConventional extends CordovaPlugin {
     private void getDigitalCardList() {
         try {
             JSONArray cardDetailsArray = new JSONArray();
+
             mD1Task.getD1PayWallet().getDigitalCardList(new D1Task.Callback<Map<String, D1PayDigitalCard>>() {
                 @Override
                 public void onSuccess(Map<String, D1PayDigitalCard> digitalCards) {
+
+                    AtomicInteger pendingReplenishments = new AtomicInteger(0);
+
                     for (Map.Entry<String, D1PayDigitalCard> entry : digitalCards.entrySet()) {
                         try {
                             String d1CardID = entry.getKey();
@@ -733,7 +667,7 @@ public class TokenizationConventional extends CordovaPlugin {
                             JSONObject cardObj = new JSONObject();
                             cardObj.put("CardArt", filePath);
                             cardObj.put("CardID", d1CardID);
-							cardObj.put("DigitalCardID",digitalCard.getCardID());
+                            cardObj.put("DigitalCardID", digitalCard.getCardID());
                             cardObj.put("Last4Pan", digitalCard.getLast4());
                             cardObj.put("ExpiryDate", digitalCard.getExpiryDate());
                             cardObj.put("IsDefaultCard", digitalCard.isDefaultCard());
@@ -745,28 +679,85 @@ public class TokenizationConventional extends CordovaPlugin {
                             cardObj.put("IsODAReplenishmentNeeded", digitalCard.isODAReplenishmentNeeded());
                             cardObj.put("IsReplenishmentNeeded", digitalCard.isReplenishmentNeeded());
 
-                            if (digitalCard.getNumberOfPaymentsLeft() < 5) {
-                                replenishment(d1CardID, true);
-                            }
+                            // Add to array immediately
                             cardDetailsArray.put(cardObj);
+
+                            // If replenishment needed, increment counter and call
+                            if (digitalCard.getNumberOfPaymentsLeft() < 5) {
+                                pendingReplenishments.incrementAndGet();
+                                replenishAsync(d1CardID, () -> {
+                                    if (pendingReplenishments.decrementAndGet() == 0) {
+                                        callback.success(cardDetailsArray.toString());
+                                    }
+                                });
+                            }
 
                         } catch (JSONException e) {
                             throw new RuntimeException(e);
                         }
                     }
-                    Log.i(TAG, "Card Details : " + cardDetailsArray.toString());
-                    callback.success(cardDetailsArray.toString());
+
+                    // If no replenishments triggered, call callback immediately
+                    if (pendingReplenishments.get() == 0) {
+                        callback.success(cardDetailsArray.toString());
+                    }
                 }
 
                 @Override
                 public void onError(@NonNull D1Exception e) {
-                    Log.e(TAG, "getDigitalCardList onError : " + e.toString());
+                    Log.e(TAG, "getDigitalCardList onError : " + e.getLocalizedMessage());
                 }
             });
 
-
         } catch (Exception e) {
-            Log.e(TAG, "getDigitalCardList Exception : " + e.toString());
+            Log.e(TAG, "getDigitalCardList Exception : " + e.getLocalizedMessage());
+        }
+    }
+
+    private void replenishAsync(String cardIdToReplenish, Runnable completionCallback) {
+
+        DeviceAuthenticationCallback cvmCallback = new DeviceAuthenticationCallback() {
+            @Override
+            public void onSuccess() {
+                Log.i(TAG, "cvmCallback onSuccess");
+            }
+
+            @Override
+            public void onFailed() {
+                Log.i(TAG, "cvmCallback onFailed");
+            }
+
+            @Override
+            public void onHelp(int fpCode, @NonNull CharSequence fpDetail) {
+                Log.i(TAG, "cvmCallback onHelp");
+            }
+
+            @Override
+            public void onError(int fpErrorCode) {
+                Log.i(TAG, "cvmCallback onError " + fpErrorCode);
+            }
+        };
+
+        if (cardIdToReplenish != null) {
+            D1PayWallet d1PayWallet = mD1Task.getD1PayWallet();
+
+            d1PayWallet.replenish(cardIdToReplenish, true, cvmCallback,
+                    new D1Task.Callback<Void>() {
+                        @Override
+                        public void onSuccess(Void ignored) {
+                            Log.i(TAG, "replenish onSuccess");
+                            completionCallback.run();
+                        }
+
+                        @Override
+                        public void onError(@NonNull D1Exception exception) {
+                            Log.i(TAG, "replenish onError " + exception.getLocalizedMessage());
+                            // Even on error, allow main flow to continue
+                            completionCallback.run();
+                        }
+                    });
+        } else {
+            completionCallback.run();
         }
     }
 
@@ -820,7 +811,7 @@ public class TokenizationConventional extends CordovaPlugin {
                         @Override
                         public void onSuccess(Void ignored) {
                             callback.success("success");
-                            Log.i(TAG, "setDefultPaymentCard "+d1CardID+" : success");
+                            Log.i(TAG, "setDefultPaymentCard " + d1CardID + " : success");
                             storeDefaultCardDetails(d1CardID);
                         }
 
@@ -875,7 +866,7 @@ public class TokenizationConventional extends CordovaPlugin {
                     if (defaultCardId.equalsIgnoreCase(cardId)) {
                         storeDefaultCardDetails(cardId);
                     }
-                }else{
+                } else {
                     Log.i(TAG, "Default cardid not found");
                 }
             }
@@ -887,8 +878,8 @@ public class TokenizationConventional extends CordovaPlugin {
             }
         });
     }
-	
-	private void storeDefaultCardDetails(String cardId) {
+
+    private void storeDefaultCardDetails(String cardId) {
         try {
             // Get SharedPreferences instance
             SharedPreferences sharedPreferences = cordova.getActivity().getSharedPreferences("AHLIBANK", Context.MODE_PRIVATE);
@@ -931,16 +922,16 @@ public class TokenizationConventional extends CordovaPlugin {
     }
 
 
-	private void initiateRemoveCard(String cardID){
-        try{
-            Log.i(TAG,"Initiate Remove Digital Card : "+cardID);
+    private void initiateRemoveCard(String cardID) {
+        try {
+            Log.i(TAG, "Initiate Remove Digital Card : " + cardID);
             D1PayWallet d1PayWallet = mD1Task.getD1PayWallet();
             d1PayWallet.getDigitalCard(cardID,
                     new D1Task.Callback<D1PayDigitalCard>() {
                         @Override
                         public void onSuccess(@NonNull D1PayDigitalCard digitalCard) {
                             Log.i("GetDigitalCard  : ", "On Success");
-                            removeDigitalCard(cardID,digitalCard);
+                            removeDigitalCard(cardID, digitalCard);
                         }
 
                         @Override
@@ -949,7 +940,7 @@ public class TokenizationConventional extends CordovaPlugin {
                         }
                     }
             );
-        }catch (Exception e){
+        } catch (Exception e) {
             Log.e(TAG, "InitiateRemoveCard Exception : " + e.toString());
         }
     }
@@ -959,10 +950,10 @@ public class TokenizationConventional extends CordovaPlugin {
             D1PayWallet d1PayWallet = mD1Task.getD1PayWallet();
             d1PayWallet.registerD1PayDataChangedListener((cardId, state) -> {
                 // The actual update to wallet is received here
-                Log.i(TAG,"registerD1PayDataChangedListener ===> Card ID : "+cardId+" | State : "+state);
+                Log.i(TAG, "registerD1PayDataChangedListener ===> Card ID : " + cardId + " | State : " + state);
 
-                if (state == State.DELETED){
-                    Log.i(TAG,"registerD1PayDataChangedListener : Deleted successfully");
+                if (state == State.DELETED) {
+                    Log.i(TAG, "registerD1PayDataChangedListener : Deleted successfully");
                     callback.success("Deleted successfully");
                 }
 
@@ -975,7 +966,7 @@ public class TokenizationConventional extends CordovaPlugin {
                     new D1Task.Callback<Boolean>() {
                         @Override
                         public void onSuccess(@NonNull Boolean result) {
-                            Log.i("RemoveDigitalCard  : ", "On Success : "+result);
+                            Log.i("RemoveDigitalCard  : ", "On Success : " + result);
                         }
 
                         @Override
@@ -989,69 +980,45 @@ public class TokenizationConventional extends CordovaPlugin {
             Log.e(TAG, "RemoveDigitalCard Exception : " + e.toString());
         }
     }
- 
 
-
-    private void doManualPayment(String cardID) {
-        try {
-			
-            // D1Pay configuration : register contactless transaction callback
-            Log.i(TAG, "doManualPayment Card ID : " + cardID);
-            isPaymentActive = true;
-			mD1Task.getD1PayWallet().startManualModePayment(cardID);
-			
-        } catch (Exception e) {
-            Log.e(TAG, "doManualPayment Exception : " + e.toString());
-        }
-    }
-	
-	public void getD1PayTxnHistory(String cardID){
-        try{
-            mD1Task.getD1PayWallet().getTransactionHistory(cardID, new D1Task.Callback<TransactionHistory>() {
-                @Override
-                public void onSuccess(TransactionHistory transactionHistory) {
-                    Log.i(TAG,"D1PayTXNHistory : "+transactionHistory.getRecords());
-                    callback.success(String.valueOf(transactionHistory.getRecords()));
-                }
-
-                @Override
-                public void onError(@NonNull D1Exception e) {
-                    Log.e(TAG,"GetD1PayTxnHistory OnError : "+e.toString());
-                    callback.error(e.toString());
-                }
-            });
-
-        }catch (Exception e){
-            Log.e(TAG,"GetD1PayTxnHistory Exception : "+e.toString());
-        }
-    }
-	
-	public D1Task getD1Task(){
-        if (mD1Task == null){
+    public D1Task getD1Task() {
+        if (mD1Task == null) {
             final String errDesc = "Need to configure D1 SDK first.";
             throw new IllegalStateException(errDesc);
         }
         return mD1Task;
     }
 
-    public class D1PayContactlessTransactionListener extends ContactlessTransactionListener {
-        private double mAmount;
-        private String mCurrency;
-        private final String mCardId;
+    private void doManualPayment(String cardID) {
+        try {
+            Log.i(TAG, "doManualPayment Card ID : " + cardID);
+
+            if (mD1PayTransactionListener != null) {
+                mD1PayTransactionListener.deactivate();
+                mCardId = cardID;
+                mD1Task.getD1PayWallet().startManualModePayment(cardID);
+            }
+
+        } catch (Exception e) {
+            Log.e(TAG, "doManualPayment Exception : " + e.toString());
+        }
+    }
+
+    public class D1PayContactlessTransactionListener extends ContactlessTransactionListener{
 
         public D1PayContactlessTransactionListener(@NonNull final Context context, final String cardId) {
             super();
-            mCardId = cardId;
+            mCardId = cardId != null ? cardId : "";
+            Log.i(TAG, "D1PayContactlessTransactionListener : " + mCardId);
         }
 
         @Override
         public void onTransactionStarted() {
-            isPaymentActive = true;
             Log.i(TAG, "onTransactionStarted");
         }
 
         @Override
-        public void onAuthenticationRequired(@NonNull final VerificationMethod method) {
+        public void onAuthenticationRequired(@NonNull VerificationMethod verificationMethod) {
             Log.i(TAG, "onAuthenticationRequired");
             doAuthenticate();
         }
@@ -1059,20 +1026,17 @@ public class TokenizationConventional extends CordovaPlugin {
         @Override
         public void onReadyToTap() {
             Log.i(TAG, "onReadyToTap");
-
-            // Register the timeout callback to update the user on remaining time for the 2nd tap.
             this.registerDeviceAuthTimeoutCallback(new DeviceAuthenticationTimeoutCallback() {
                 @Override
                 public void onTimer(final int remain) {
-                    // The mobile application should update the countdown screen with current "remaining" time.
+                    // [MODIFIED] Do NOTHING here if you don't want a visual countdown.
                 }
 
                 @Override
                 public void onTimeout() {
-                    Log.i(TAG, "TimeOut");
-                    if (!isPaymentActive) return;  
-                    isPaymentActive = false;
-                    updateAmountAndCurrency();
+                    // [RETAINED] Ensure payment state is reset cleanly.
+                    Log.i(TAG, "TimeOut - Internal state cleanup executed.");
+                    deactivate();
                 }
             });
         }
@@ -1080,93 +1044,120 @@ public class TokenizationConventional extends CordovaPlugin {
         @Override
         public void onTransactionCompleted() {
             try {
-                if (!isPaymentActive) return;  
-                isPaymentActive = false;
-                updateAmountAndCurrency();
                 Log.i(TAG, "onTransactionCompleted Card ID : " + mCardId);
-                new Handler().postDelayed(() -> {
-                    Intent intent = new Intent(cordova.getActivity(), TransactionSent.class);
-                    intent.setFlags(FLAG_ACTIVITY_NEW_TASK);
-                    intent.putExtra("CardID", mCardId == null ? "" : mCardId);
-                    cordova.getActivity().startActivity(intent);
-}               , 2800);
 
-                
+                // Capture the activity ONCE and reuse (cordova.getActivity() can become NULL later)
+                Activity activity = cordova.getActivity();
+
+                cordova.getActivity().runOnUiThread(() -> {
+                    try {
+                        Intent intent = new Intent(activity, TransactionSent.class);
+                        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        intent.putExtra("CardID", (mCardId == null ? "" : mCardId));
+
+                        activity.startActivity(intent);
+
+                        Log.i(TAG, "TransactionSent Activity Started Successfully");
+                        callback.success("Transaction Completed");
+                    } catch (Exception e) {
+                        Log.e(TAG, "Navigation failed in onTransactionCompleted: " + e.getMessage());
+                    }
+                });
+
             } catch (Exception e) {
-                Log.e(TAG, "onTransactionCompleted Exception : " + e.toString());
+                Log.e(TAG, "onTransactionCompleted Exception : " + e.getMessage());
             }
         }
 
         @Override
-        public void onError(@NonNull final D1Exception error) {
-            Log.e(TAG, "onError : " + error.toString());
+        public void onError(@NonNull D1Exception e) {
+            Log.e(TAG, "onError : " + e.toString());
 
-            if (!isPaymentActive) return;  
-                isPaymentActive = false;
-
-            if (error.toString().contains("PAYMENT_WRONG_STATE")) {
-                safeDeactivate();
-                wipeTxn();
+            if (e.toString().contains("PAYMENT_WRONG_STATE")) {
+                deactivate();
             }
+            callback.error(e.toString());
+        }
+    }
+
+    private final DeviceAuthenticationCallback deviceAuthenticationCallback = new DeviceAuthenticationCallback() {
+        @Override
+        public void onSuccess() {
+            Log.i(TAG, "Authentication Success");
         }
 
-        private void updateAmountAndCurrency() {
-            Log.i(TAG, "updateAmountAndCurrency");
-            final TransactionData transactionData = getTransactionData();
-            if (transactionData != null) {
-                mAmount = transactionData.getAmount();
-                mCurrency = "OMR";
-                transactionData.wipe();
-            } else {
-                mAmount = -1.0;
-                mCurrency = null;
-            }
+        @Override
+        public void onFailed() {
+            Log.i(TAG, "Authentication Failed");
+            callback.error("Authentication Failed");
         }
 
-        private void wipeTxn(){
-            Log.i(TAG, "Wipe Transactions init");
-            final TransactionData transactionData = getTransactionData();
-            if (transactionData != null) {
-                Log.i(TAG, "Transactions Wiped");
-                transactionData.wipe();
-            }
+        @Override
+        public void onError(int i) {
+            Log.i(TAG, "Authentication onError : " + i);
+            callback.error("Authentication Failed");
         }
 
-        private final DeviceAuthenticationCallback deviceAuthenticationCallback = new DeviceAuthenticationCallback() {
-            @Override
-            public void onSuccess() {
-            }
+        @Override
+        public void onHelp(int i, @NonNull CharSequence charSequence) {
+            Log.i(TAG, "Authentication onHelp : " + charSequence.toString());
+        }
+    };
 
-            @Override
-            public void onFailed() {
-                callback.success("Authentication Failed");
-            }
+    public void doAuthenticate() {
+        Log.i(TAG,"Do Authenticate called");
+        Activity activity = cordova.getActivity();
 
-            @Override
-            public void onError(int i) {
-            }
+        if (activity == null){
+            Log.e(TAG,"activity is null");
+            return;
+        }
 
-            @Override
-            public void onHelp(int i, @NonNull CharSequence charSequence) {
-            }
-        };
+        if (!isAppInForeground(activity)) {
+            Log.i(TAG, "App not in foreground – bringing to front");
+            bringAppToForeground(activity);
 
+            // Wait a bit for app to fully come to foreground
+            new Handler(Looper.getMainLooper()).postDelayed(this::startAuthUI, 350);
+        } else {
+            startAuthUI();
+        }
+    }
 
-        private void doAuthenticate() {
+    public boolean isAppInForeground(Activity activity) {
+        return activity.hasWindowFocus();
+    }
+
+    private void startAuthUI() {
+        Log.i(TAG,"StartAuthUI called");
+        Activity activity = cordova.getActivity();
+
+        activity.runOnUiThread(() -> {
             try {
-                Log.i(TAG, "doAuthenticate Called");
-                final AuthenticationParameter authenticationParameter = new AuthenticationParameter(cordova.getActivity(),
-                        "Authentication Required",
-                        "Please authenticate yourself for payment",
-                        "See amount on POS",
-                        "Cancel",
-                        deviceAuthenticationCallback);
+                AuthenticationParameter authParam =
+                        new AuthenticationParameter(
+                                activity,
+                                "Biometric Authentication",
+                                "Please verify your identity to proceed",
+                                "Use your fingerprint or face",
+                                "Cancel",
+                                deviceAuthenticationCallback
+                        );
 
-                mD1PayTransactionListener.startAuthenticate(authenticationParameter);
+                mD1PayTransactionListener.startAuthenticate(authParam);
+
             } catch (Exception e) {
-                Log.e(TAG, "doAuthenticate : " + e.toString());
+                Log.e(TAG, "startAuthUI error: " + e.getMessage());
             }
-        }
+        });
+    }
+
+    private void bringAppToForeground(Activity activity) {
+        Intent intent = new Intent(activity, activity.getClass());
+        intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT |
+                Intent.FLAG_ACTIVITY_SINGLE_TOP |
+                Intent.FLAG_ACTIVITY_NEW_TASK);
+        activity.startActivity(intent);
     }
 
     public void checkD1PushCardDigitizationStateSamsungPay(String cardId) {
@@ -1213,18 +1204,18 @@ public class TokenizationConventional extends CordovaPlugin {
         }
     }
 
-    public void d1PushActivateDigitalCardSamsungPay(){
-        try{
+    public void d1PushActivateDigitalCardSamsungPay() {
+        try {
             D1PushWallet d1PushWallet = mD1Task.getD1PushWallet();
             d1PushWallet.activateSamsungPay();
-        }catch (Exception e){
-            Log.e(TAG, "d1PushActivateDigitalCard Exception : "+e.toString());
+        } catch (Exception e) {
+            Log.e(TAG, "d1PushActivateDigitalCard Exception : " + e.toString());
         }
     }
 
-    public void d1PushAddDigitalCardToSamsungPay(String cardId){
-        try{
-			Log.i(TAG, "Add card to Samsung wallet : " + cardId);
+    public void d1PushAddDigitalCardToSamsungPay(String cardId) {
+        try {
+            Log.i(TAG, "Add card to Samsung wallet : " + cardId);
             D1PushWallet d1PushWallet = mD1Task.getD1PushWallet();
             OEMPayType wallet = OEMPayType.SAMSUNG_PAY;
 
@@ -1232,22 +1223,22 @@ public class TokenizationConventional extends CordovaPlugin {
                 @Override
                 public void onSuccess(Object o) {
                     callback.success("success");
-					Log.i(TAG, "Add Card To Samsung Wallet Successfully");
+                    Log.i(TAG, "Add Card To Samsung Wallet Successfully");
                 }
 
                 @Override
                 public void onError(@NonNull D1Exception e) {
-					Log.e(TAG, "Add Card To Samsung wallet Error : " + e.toString());
+                    Log.e(TAG, "Add Card To Samsung wallet Error : " + e.toString());
                     callback.error(e.toString());
                 }
             });
-        }catch (Exception e){
-            Log.e(TAG, "d1PushAddDigitalCardToSamsungPay Exception : "+e.toString());
+        } catch (Exception e) {
+            Log.e(TAG, "d1PushAddDigitalCardToSamsungPay Exception : " + e.toString());
         }
     }
-	
-	public void checkD1PushCardDigitizationStateGPay(String cardId){
-        try{
+
+    public void checkD1PushCardDigitizationStateGPay(String cardId) {
+        try {
             Log.i(TAG, "Google Wallet Card State : " + cardId);
             OEMPayType wallet = OEMPayType.GOOGLE_PAY;
             D1PushWallet d1PushWallet = mD1Task.getD1PushWallet();
@@ -1257,22 +1248,22 @@ public class TokenizationConventional extends CordovaPlugin {
                     switch (cardDigitizationState) {
                         case NOT_DIGITIZED:
                             callback.success("NOT_DIGITIZED");
-                            Log.i(TAG, "Google Wallet Card State of "+cardId+" is : NOT_DIGITIZED");
+                            Log.i(TAG, "Google Wallet Card State of " + cardId + " is : NOT_DIGITIZED");
                             break;
 
                         case PENDING_IDV:
                             callback.success("PENDING_IDV");
-                            Log.i(TAG, "Google Wallet Card State of "+cardId+" is : PENDING_IDV");
+                            Log.i(TAG, "Google Wallet Card State of " + cardId + " is : PENDING_IDV");
                             break;
 
                         case DIGITIZED:
                             callback.success("DIGITIZED");
-                            Log.i(TAG, "Google Wallet Card State of "+cardId+" is : DIGITIZED");
+                            Log.i(TAG, "Google Wallet Card State of " + cardId + " is : DIGITIZED");
                             break;
 
                         default:
                             callback.success("NULL");
-                            Log.i(TAG, "Google Wallet Card State of "+cardId+" is : : NULL");
+                            Log.i(TAG, "Google Wallet Card State of " + cardId + " is : : NULL");
                             break;
                     }
                 }
@@ -1283,14 +1274,14 @@ public class TokenizationConventional extends CordovaPlugin {
                     Log.e(TAG, "checkD1PushCardDigitizationStateGPay Exception : " + e.toString());
                 }
             });
-        }catch (Exception e){
-            Log.e(TAG,"checkD1PushCardDigitizationStateGPay Exception : "+e.toString());
+        } catch (Exception e) {
+            Log.e(TAG, "checkD1PushCardDigitizationStateGPay Exception : " + e.toString());
         }
     }
-    
-    public void addCardToGoogleWallet(String cardId){
-        try{
-            Log.i(TAG,"addCardToGoogleWallet Card Id : "+cardId);
+
+    public void addCardToGoogleWallet(String cardId) {
+        try {
+            Log.i(TAG, "addCardToGoogleWallet Card Id : " + cardId);
 
             OEMPayType wallet = OEMPayType.GOOGLE_PAY;
             D1Task.Callback<Object> gPayCallback = new D1Task.Callback<Object>() {
@@ -1303,7 +1294,7 @@ public class TokenizationConventional extends CordovaPlugin {
                 @Override
                 public void onError(@NonNull D1Exception exception) {
                     // Handles the error.
-                    Log.e(TAG, "Add Card To GoogleWallet Error : "+exception.getMessage());
+                    Log.e(TAG, "Add Card To GoogleWallet Error : " + exception.getMessage());
                     callback.error(exception.getMessage());
                 }
             };
@@ -1311,8 +1302,8 @@ public class TokenizationConventional extends CordovaPlugin {
             d1PushWallet.addDigitalCardToOEM(cardId, wallet, cordova.getActivity(), gPayCallback);
 
 
-        }catch(Exception e){
-            Log.e(TAG,"addCardToGoogleWallet Excpetion : "+e.toString());
+        } catch (Exception e) {
+            Log.e(TAG, "addCardToGoogleWallet Excpetion : " + e.toString());
         }
     }
 
@@ -1331,6 +1322,4 @@ public class TokenizationConventional extends CordovaPlugin {
             Log.e(TAG, "mD1Task is null in onActivityResult");
         }
     }
-
-
 }
