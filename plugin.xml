@@ -6,8 +6,6 @@
 	<js-module name="TokenizationConventional" src="www/TokenizationConventional.js">
 		<clobbers target="cordova.plugins.TokenizationConventional" />
 	</js-module>
-
-	<dependency id="pushwoosh-cordova-plugin" />
 	
 	<platform name="android">
 		
