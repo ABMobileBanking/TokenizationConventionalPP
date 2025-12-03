@@ -68,7 +68,10 @@ public class TransactionSent extends Activity {
                     return;  // Exit if no valid cardID is available
                 }
             } else {
-                Log.i(TAG, "Contactless transaction using mobile app, CARD ID: " + cardID);
+                Log.i(TAG, "Contactless transaction CARD ID: " + cardID);
+                if (cardID.equalsIgnoreCase(sharedPreferences.getString("CARDID", null))){
+                    fPAN = sharedPreferences.getString("LAST4FPAN", null);
+                }
             }
 
             // Read card data from file and display
